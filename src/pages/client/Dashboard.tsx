@@ -1,18 +1,20 @@
 import { useState, useEffect } from 'react';
-import { Phone, Wallet, History, CreditCard, Gift, CheckCircle2, Clock, XCircle, ArrowRight, Sparkles, ShoppingBag, Receipt, ChevronDown, ChevronUp, User, Lock, LogOut, MapPin, Calendar } from 'lucide-react';
+import { Phone, Wallet, History, CreditCard, Gift, CheckCircle2, Clock, XCircle, ArrowRight, Sparkles, ShoppingBag, Receipt, ChevronDown, ChevronUp, User, Lock, LogOut, MapPin, Calendar, Mail, AlertCircle } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import type { Customer, Transaction } from '../../types';
 import { supabase } from '../../lib/supabase';
 import { sendWhatsAppNotification } from '../../lib/notifications';
 import toast from 'react-hot-toast';
 import { getCurrentPosition, isWithinStoreRange, getClosestStore, formatDistance } from '../../utils/geolocation';
-import { Link } from 'react-router-dom';
 
 const CASHBACK_RATE = 0.05; // 5% cashback
 
-export default function ClientDashboard() {
+function ClientDashboard() {
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [phoneNumber, setPhoneNumber] = useState('');
   const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [dateOfBirth, setDateOfBirth] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLogin, setIsLogin] = useState(false);
@@ -25,10 +27,7 @@ export default function ClientDashboard() {
   const [availableBalance, setAvailableBalance] = useState(0);
   const [expandedTransactionId, setExpandedTransactionId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showPasswordChange, setShowPasswordChange] = useState(false);
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmNewPassword, setConfirmNewPassword] = useState('');
-  const [dateOfBirth, setDateOfBirth] = useState('');
+  const [nextExpiringAmount, setNextExpiringAmount] = useState<{ amount: number; date: Date } | null>(null);
 
   useEffect(() => {
     if (customer) {
@@ -41,31 +40,48 @@ export default function ClientDashboard() {
     if (!customer?.id) return;
 
     try {
-      const { data: purchaseData, error: purchaseError } = await supabase
+      const { data: transactions, error } = await supabase
         .from('transactions')
-        .select('cashback_amount')
+        .select('cashback_amount, expires_at')
         .eq('customer_id', customer.id)
         .eq('type', 'purchase')
-        .eq('status', 'approved');
+        .eq('status', 'approved')
+        .gt('expires_at', new Date().toISOString())
+        .order('expires_at', { ascending: true });
 
-      if (purchaseError) throw purchaseError;
+      if (error) throw error;
 
-      const { data: redemptionData, error: redemptionError } = await supabase
-        .from('transactions')
-        .select('amount')
-        .eq('customer_id', customer.id)
-        .eq('type', 'redemption')
-        .eq('status', 'approved');
+      // Calculate total available balance
+      const total = transactions?.reduce((sum, t) => sum + (t.cashback_amount || 0), 0) || 0;
+      setAvailableBalance(total);
 
-      if (redemptionError) throw redemptionError;
-
-      const totalCashback = purchaseData?.reduce((sum, t) => sum + (t.cashback_amount || 0), 0) || 0;
-      const totalRedemptions = redemptionData?.reduce((sum, t) => sum + (t.amount || 0), 0) || 0;
-      
-      setAvailableBalance(totalCashback - totalRedemptions);
+      // Find next expiring amount
+      if (transactions && transactions.length > 0) {
+        const nextExpiring = transactions[0];
+        setNextExpiringAmount({
+          amount: nextExpiring.cashback_amount,
+          date: new Date(nextExpiring.expires_at)
+        });
+      } else {
+        setNextExpiringAmount(null);
+      }
     } catch (error) {
       console.error('Error calculating balance:', error);
       toast.error('Erro ao calcular saldo disponível');
+    }
+  };
+
+  const formatExpirationDate = (date: Date) => {
+    const now = new Date();
+    const diffTime = date.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 1) {
+      return 'Expira amanhã';
+    } else if (diffDays > 1) {
+      return `Expira em ${diffDays} dias`;
+    } else {
+      return 'Expira hoje';
     }
   };
 
@@ -121,61 +137,8 @@ export default function ClientDashboard() {
         return;
       }
 
-      const { data: existingCustomer } = await supabase
-        .from('customers')
-        .select('id, phone')
-        .eq('phone', cleanPhone)
-        .maybeSingle();
-
-      if (!isLogin) {
-        if (existingCustomer) {
-          toast.error('Este número já está cadastrado');
-          return;
-        }
-
-        if (!name.trim()) {
-          throw new Error('Por favor, insira seu nome');
-        }
-
-        if (!dateOfBirth) {
-          throw new Error('Por favor, insira sua data de nascimento');
-        }
-
-        if (!password || password.length < 6) {
-          throw new Error('A senha deve ter pelo menos 6 caracteres');
-        }
-
-        if (password !== confirmPassword) {
-          throw new Error('As senhas não coincidem');
-        }
-
-        const { data: newCustomer, error: createError } = await supabase
-          .from('customers')
-          .insert({
-            name: name.trim(),
-            phone: cleanPhone,
-            password_hash: password,
-            date_of_birth: dateOfBirth,
-            balance: 0
-          })
-          .select()
-          .single();
-
-        if (createError) throw createError;
-
-        await sendWhatsAppNotification({
-          type: 'welcome',
-          customerId: newCustomer.id
-        });
-
-        setCustomer(newCustomer);
-        toast.success('Cadastro realizado com sucesso!');
-      } else {
-        if (!existingCustomer) {
-          toast.error('Número de telefone não encontrado');
-          return;
-        }
-
+      if (isLogin) {
+        // Verify the password using RPC function
         const { data: customerId, error: verifyError } = await supabase
           .rpc('verify_customer_password', {
             p_phone: cleanPhone,
@@ -189,10 +152,11 @@ export default function ClientDashboard() {
         }
 
         if (!customerId) {
-          toast.error('Senha incorreta');
+          toast.error('Telefone ou senha incorretos');
           return;
         }
 
+        // Fetch customer data
         const { data: customerData, error: customerError } = await supabase
           .from('customers')
           .select('*')
@@ -205,13 +169,89 @@ export default function ClientDashboard() {
 
         setCustomer(customerData);
         toast.success('Login realizado com sucesso!');
+      } else {
+        // Registration flow
+        // Check if phone number exists
+        const { data: existingCustomer } = await supabase
+          .from('customers')
+          .select('id')
+          .eq('phone', cleanPhone)
+          .single();
+
+        if (existingCustomer) {
+          toast.error('Este número já está cadastrado', {
+            icon: '📱',
+            duration: 5000,
+          });
+          return;
+        }
+
+        if (!email.match(/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/)) {
+          toast.error('Por favor, insira um email válido');
+          return;
+        }
+
+        const { data: existingEmail } = await supabase
+          .from('customers')
+          .select('id')
+          .eq('email', email.toLowerCase())
+          .maybeSingle();
+
+        if (existingEmail) {
+          toast.error('Este email já está cadastrado');
+          return;
+        }
+
+        if (!dateOfBirth) {
+          toast.error('Por favor, insira sua data de nascimento');
+          return;
+        }
+
+        if (!name.trim()) {
+          throw new Error('Por favor, insira seu nome');
+        }
+
+        if (!password || password.length < 6) {
+          throw new Error('A senha deve ter pelo menos 6 caracteres');
+        }
+
+        if (password !== confirmPassword) {
+          throw new Error('As senhas não coincidem');
+        }
+
+        // Create new customer
+        const { data: newCustomer, error: createError } = await supabase
+          .from('customers')
+          .insert({
+            name: name.trim(),
+            phone: cleanPhone,
+            email: email.toLowerCase(),
+            date_of_birth: dateOfBirth,
+            password_hash: password,
+            balance: 0
+          })
+          .select()
+          .single();
+
+        if (createError) throw createError;
+
+        // Send welcome notification
+        await sendWhatsAppNotification({
+          type: 'welcome',
+          customerId: newCustomer.id
+        });
+
+        setCustomer(newCustomer);
+        toast.success('Cadastro realizado com sucesso!');
       }
 
+      // Clear form
       setPhoneNumber('');
       setName('');
+      setEmail('');
+      setDateOfBirth('');
       setPassword('');
       setConfirmPassword('');
-      setDateOfBirth('');
     } catch (error: any) {
       console.error('Error:', error);
       toast.error(error.message || 'Erro ao processar solicitação');
@@ -238,6 +278,7 @@ export default function ClientDashboard() {
     setLoading(true);
 
     try {
+      // Check Supabase connection first
       const { error: healthCheckError } = await supabase.from('transactions').select('id').limit(1);
       if (healthCheckError) {
         console.error('Supabase connection error:', healthCheckError);
@@ -253,6 +294,7 @@ export default function ClientDashboard() {
 
       const { latitude, longitude } = position.coords;
 
+      // Check if within range of any store
       if (!isWithinStoreRange(latitude, longitude)) {
         const closestStore = getClosestStore(latitude, longitude);
         if (closestStore) {
@@ -274,7 +316,13 @@ export default function ClientDashboard() {
 
       const cashbackAmount = Number((amount * CASHBACK_RATE).toFixed(2));
 
+      // Add a small delay to prevent duplicate submissions
       await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Calculate expiration date (end of next month)
+      const expirationDate = new Date();
+      expirationDate.setMonth(expirationDate.getMonth() + 2, 0); // Last day of next month
+      expirationDate.setHours(23, 59, 59, 999);
 
       const { error } = await supabase
         .from('transactions')
@@ -287,7 +335,8 @@ export default function ClientDashboard() {
           location: {
             latitude,
             longitude
-          }
+          },
+          expires_at: expirationDate.toISOString()
         });
 
       if (error) {
@@ -353,7 +402,13 @@ export default function ClientDashboard() {
         .select('id')
         .single();
 
-      if (error) throw error;
+      if (error) {
+        if (error.message.includes('Insufficient balance for redemption')) {
+          toast.error('Você não possui cashback válido suficiente para este resgate. Verifique o saldo disponível e a data de expiração.');
+          return;
+        }
+        throw error;
+      }
 
       await Promise.all([
         loadTransactions(),
@@ -366,42 +421,6 @@ export default function ClientDashboard() {
     } catch (error: any) {
       console.error('Error:', error);
       toast.error('Erro ao resgatar cashback');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handlePasswordChange = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!customer) return;
-
-    if (newPassword.length < 6) {
-      toast.error('A nova senha deve ter pelo menos 6 caracteres');
-      return;
-    }
-
-    if (newPassword !== confirmNewPassword) {
-      toast.error('As senhas não coincidem');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const { data: success, error } = await supabase
-        .rpc('change_customer_password', {
-          p_phone: customer.phone,
-          p_new_password: newPassword
-        });
-
-      if (error) throw error;
-
-      toast.success('Senha alterada com sucesso!');
-      setShowPasswordChange(false);
-      setNewPassword('');
-      setConfirmNewPassword('');
-    } catch (error: any) {
-      console.error('Error changing password:', error);
-      toast.error('Erro ao alterar senha');
     } finally {
       setLoading(false);
     }
@@ -428,6 +447,32 @@ export default function ClientDashboard() {
       minute: '2-digit'
     });
   };
+
+  function renderTransactionStatus(status: Transaction['status']) {
+    switch (status) {
+      case 'pending':
+        return (
+          <span className="status-badge pending">
+            <Clock className="w-4 h-4" />
+            Pendente
+          </span>
+        );
+      case 'approved':
+        return (
+          <span className="status-badge approved">
+            <CheckCircle2 className="w-4 h-4" />
+            Aprovado
+          </span>
+        );
+      case 'rejected':
+        return (
+          <span className="status-badge rejected">
+            <XCircle className="w-4 h-4" />
+            Rejeitado
+          </span>
+        );
+    }
+  }
 
   if (!customer) {
     return (
@@ -486,6 +531,23 @@ export default function ClientDashboard() {
                         required={!isLogin}
                       />
                       <User className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Seu email
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="input-field text-lg pl-11"
+                        placeholder="exemplo@email.com"
+                        required={!isLogin}
+                      />
+                      <Mail className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
                     </div>
                   </div>
 
@@ -574,7 +636,7 @@ export default function ClientDashboard() {
                 <div className="text-right">
                   <Link
                     to="/reset-password"
-                    className="text-sm text-purple-600 hover:text-purple-700"
+                    className="text-sm text-purple-600 hover:text-purple-700 transition-colors"
                   >
                     Esqueceu sua senha?
                   </Link>
@@ -602,101 +664,35 @@ export default function ClientDashboard() {
           <div>
             <div className="flex items-center justify-between gap-4 mb-2">
               <h2 className="text-2xl font-bold">Olá, {customer.name}!</h2>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setShowPasswordChange(true)}
-                  className="btn-secondary py-2 px-4 flex items-center gap-2 text-sm"
-                >
-                  <Lock className="w-4 h-4" />
-                  Alterar Senha
-                </button>
-                <button
-                  onClick={handleLogout}
-                  className="btn-secondary py-2 px-4 flex items-center gap-2 text-sm"
-                >
-                  <LogOut className="w-4 h-4" />
-                  Sair
-                </button>
-              </div>
+              <button
+                onClick={handleLogout}
+                className="btn-secondary py-2 px-4 flex items-center gap-2 text-sm"
+              >
+                <LogOut className="w-4 h-4" />
+                Sair
+              </button>
             </div>
             <p className="text-gray-600 flex items-center gap-2">
               <Phone className="w-4 h-4" />
               {customer.phone}
             </p>
           </div>
-          <div className="text-right">
-            <div className="text-sm text-gray-600 mb-1">Seu saldo disponível</div>
-            <div className="text-3xl font-bold text-purple-600">
+          <div className="balance-section">
+            <div className="balance-decoration"></div>
+            <div className="balance-label">Seu saldo disponível</div>
+            <div className="balance-amount">
               R$ {availableBalance.toFixed(2)}
             </div>
+            {nextExpiringAmount && (
+              <div className="balance-expiration">
+                <AlertCircle className="w-4 h-4" />
+                <span>
+                  R$ {nextExpiringAmount.amount.toFixed(2)} - {formatExpirationDate(nextExpiringAmount.date)}
+                </span>
+              </div>
+            )}
           </div>
         </div>
-
-        {showPasswordChange && (
-          <div className="border-t border-purple-100 mt-6 pt-6">
-            <form onSubmit={handlePasswordChange} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Nova Senha
-                </label>
-                <div className="relative">
-                  <input
-                    type="password"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    className="input-field text-lg pl-11"
-                    placeholder="••••••"
-                    required
-                    minLength={6}
-                  />
-                  <Lock className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
-                </div>
-                <p className="mt-2 text-sm text-gray-500">
-                  Mínimo de 6 caracteres
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Confirme a Nova Senha
-                </label>
-                <div className="relative">
-                  <input
-                    type="password"
-                    value={confirmNewPassword}
-                    onChange={(e) => setConfirmNewPassword(e.target.value)}
-                    className="input-field text-lg pl-11"
-                    placeholder="••••••"
-                    required
-                  />
-                  <Lock className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
-                </div>
-              </div>
-
-              <div className="flex gap-2">
-                <button
-                  type="submit"
-                  className="btn-primary flex-1"
-                  disabled={loading}
-                >
-                  {loading ? 'Alterando...' : 'Confirmar'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowPasswordChange(false);
-                    setNewPassword('');
-                    setConfirmNewPassword('');
-                  }}
-                  className="btn-secondary flex-1"
-                  disabled={loading}
-                >
-                  Cancelar
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
 
         <div className="space-y-6">
           <div className="border-t border-b border-purple-100 -mx-8 px-8 py-6">
@@ -833,8 +829,7 @@ export default function ClientDashboard() {
 
         <div className="space-y-4">
           {transactions
-            .filter(t => activeTab === 'purchases' ? t.type === 'purchase' : t.type ===
- 'redemption')
+            .filter(t => activeTab === 'purchases' ? t.type === 'purchase' : t.type === 'redemption')
             .map(transaction => (
               <div key={transaction.id} className="transaction-item">
                 <button 
@@ -842,6 +837,7 @@ export default function ClientDashboard() {
                   className="w-full text-left"
                 >
                   <div className="flex items-center justify-between">
+                    
                     <div>
                       <div className="font-medium flex items-center gap-2">
                         {transaction.type === 'purchase' ? (
@@ -849,7 +845,7 @@ export default function ClientDashboard() {
                         ) : (
                           <Gift className="w-4 h-4 text-purple-600" />
                         )}
-                        {transaction.type === 'purchase' ? 'Compra' : 'Resgate'}
+                        {transaction.type === 'purchase' ?'Compra' : 'Resgate'}
                         {expandedTransactionId === transaction.id ? (
                           <ChevronUp className="w-4 h-4 text-gray-500" />
                         ) : (
@@ -870,8 +866,8 @@ export default function ClientDashboard() {
                           ? 'text-green-600'
                           : 'text-purple-600'
                       }`}>
-                        {transaction.type === 'purchase'
-                          ? '+' : '-'}R$ {Math.abs(transaction.cashback_amount).toFixed(2)} cashback
+                        {transaction.type === 'purchase' ? '+' : '-'}
+                        R$ {Math.abs(transaction.cashback_amount).toFixed(2)} cashback
                       </div>
                     </div>
                   </div>
@@ -885,12 +881,26 @@ export default function ClientDashboard() {
                         {renderTransactionStatus(transaction.status)}
                       </div>
                       {transaction.type === 'purchase' && (
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-gray-600">Cashback (5%):</span>
-                          <span className="text-green-600">
-                            R$ {transaction.cashback_amount.toFixed(2)}
-                          </span>
-                        </div>
+                        <>
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-gray-600">Cashback (5%):</span>
+                            <span className="text-green-600">
+                              R$ {transaction.cashback_amount.toFixed(2)}
+                            </span>
+                          </div>
+                          {transaction.expires_at && (
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="text-gray-600">Expira em:</span>
+                              <span className="text-orange-600">
+                                {new Date(transaction.expires_at).toLocaleDateString('pt-BR', {
+                                  day: '2-digit',
+                                  month: 'long',
+                                  year: 'numeric'
+                                })}
+                              </span>
+                            </div>
+                          )}
+                        </>
                       )}
                       {transaction.receipt_url && (
                         <div className="mt-3">
@@ -925,28 +935,4 @@ export default function ClientDashboard() {
   );
 }
 
-function renderTransactionStatus(status: Transaction['status']) {
-  switch (status) {
-    case 'pending':
-      return (
-        <span className="status-badge pending">
-          <Clock className="w-4 h-4" />
-          Pendente
-        </span>
-      );
-    case 'approved':
-      return (
-        <span className="status-badge approved">
-          <CheckCircle2 className="w-4 h-4" />
-          Aprovado
-        </span>
-      );
-    case 'rejected':
-      return (
-        <span className="status-badge rejected">
-          <XCircle className="w-4 h-4" />
-          Rejeitado
-        </span>
-      );
-  }
-}
+export default ClientDashboard;

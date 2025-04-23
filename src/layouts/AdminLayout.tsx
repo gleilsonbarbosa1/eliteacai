@@ -53,6 +53,7 @@ export default function AdminLayout() {
       if (data) {
         setAdminData(data as Admin);
       } else {
+        // If no admin data found, sign out
         await handleAdminLogout();
       }
     } catch (error) {
@@ -87,31 +88,31 @@ export default function AdminLayout() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-50 to-secondary-50">
-      <header className="header">
-        <div className="header-container">
-          <div className="header-content">
-            <h1 className="header-title">
-              <CreditCard className="w-5 sm:w-6 h-5 sm:h-6 text-primary-600" />
+      <header className="bg-white bg-opacity-90 backdrop-blur-sm shadow-sm sticky top-0 z-50">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex justify-between items-center">
+            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+              <CreditCard className="w-6 h-6 text-primary-600" />
               Área Administrativa
             </h1>
-            <div className="header-actions">
-              <span className="hidden sm:flex text-sm items-center gap-2">
+            <div className="flex items-center gap-4">
+              <span className="text-sm flex items-center gap-2">
                 <User className="w-4 h-4" />
                 {adminData.email}
               </span>
               <button
                 onClick={handleAdminLogout}
-                className="btn-secondary !py-2"
+                className="btn-secondary flex items-center gap-2"
               >
                 <LogOut className="w-4 h-4" />
-                <span className="hidden sm:inline ml-2">Sair</span>
+                Sair
               </button>
             </div>
           </div>
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-6 sm:py-8">
+      <main className="container mx-auto px-4 py-8">
         <Outlet />
       </main>
     </div>

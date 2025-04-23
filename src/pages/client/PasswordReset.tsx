@@ -1,36 +1,27 @@
 import { useState } from 'react';
-import { Lock, ArrowLeft, Phone, Calendar } from 'lucide-react';
+import { Lock, ArrowLeft, Calendar, Phone } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
 
 export default function PasswordReset() {
-  const [phoneNumber, setPhoneNumber] = useState('');
+  const [phone, setPhone] = useState('');
   const [dateOfBirth, setDateOfBirth] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handlePhoneNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let value = e.target.value.replace(/\D/g, '');
-    
-    if (value.length > 11) {
-      value = value.slice(0, 11);
-    }
-    
-    let formattedValue = '';
-    if (value.length > 0) {
-      formattedValue = `(${value.slice(0, 2)}`;
-      if (value.length > 2) {
-        formattedValue += `) ${value.slice(2, 7)}`;
-        if (value.length > 7) {
-          formattedValue += `-${value.slice(7, 11)}`;
-        }
-      }
-    }
-    
-    setPhoneNumber(formattedValue);
+  const formatPhoneNumber = (value: string) => {
+    // Remove all non-digit characters
+    const digits = value.replace(/\D/g, '');
+    // Ensure the phone number is exactly 11 digits
+    return digits.slice(0, 11);
+  };
+
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formattedPhone = formatPhoneNumber(e.target.value);
+    setPhone(formattedPhone);
   };
 
   const handleResetPassword = async (e: React.FormEvent) => {
@@ -38,10 +29,8 @@ export default function PasswordReset() {
     setLoading(true);
 
     try {
-      const cleanPhone = phoneNumber.replace(/\D/g, '');
-
-      if (cleanPhone.length !== 11) {
-        toast.error('Por favor, insira um número de telefone válido com DDD');
+      if (!phone || phone.length !== 11) {
+        toast.error('Por favor, insira um número de telefone válido (11 dígitos)');
         return;
       }
 
@@ -60,14 +49,17 @@ export default function PasswordReset() {
         return;
       }
 
-      const { data: success, error } = await supabase
-        .rpc('reset_password_with_dob', {
-          p_phone: cleanPhone,
+      // Use RPC to reset password with proper hashing
+      const { data: success, error: resetError } = await supabase
+        .rpc('reset_customer_password_with_dob', {
+          p_phone: phone,
           p_date_of_birth: dateOfBirth,
           p_new_password: newPassword
         });
 
-      if (error) throw error;
+      if (resetError) {
+        throw resetError;
+      }
 
       if (!success) {
         toast.error('Telefone ou data de nascimento incorretos');
@@ -103,20 +95,23 @@ export default function PasswordReset() {
           <form onSubmit={handleResetPassword} className="space-y-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Seu número de WhatsApp
+                Telefone
               </label>
               <div className="relative">
                 <input
                   type="tel"
-                  value={phoneNumber}
-                  onChange={handlePhoneNumberChange}
-                  placeholder="(99) 99999-9999"
+                  value={phone}
+                  onChange={handlePhoneChange}
+                  placeholder="11999999999"
                   className="input-field text-lg pl-11"
-                  maxLength={15}
                   required
+                  maxLength={11}
                 />
                 <Phone className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
               </div>
+              <p className="mt-2 text-sm text-gray-500">
+                Digite seu número de telefone cadastrado (11 dígitos)
+              </p>
             </div>
 
             <div>
@@ -133,6 +128,9 @@ export default function PasswordReset() {
                 />
                 <Calendar className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
               </div>
+              <p className="mt-2 text-sm text-gray-500">
+                Digite sua data de nascimento cadastrada
+              </p>
             </div>
 
             <div>
@@ -145,7 +143,6 @@ export default function PasswordReset() {
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   className="input-field text-lg pl-11"
-                  placeholder="••••••"
                   required
                   minLength={6}
                 />
@@ -166,7 +163,6 @@ export default function PasswordReset() {
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   className="input-field text-lg pl-11"
-                  placeholder="••••••"
                   required
                 />
                 <Lock className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
@@ -178,7 +174,7 @@ export default function PasswordReset() {
               className="btn-primary w-full"
               disabled={loading}
             >
-              {loading ? 'Alterando...' : 'Alterar Senha'}
+              {loading ? 'Processando...' : 'Redefinir Senha'}
             </button>
           </form>
         </div>

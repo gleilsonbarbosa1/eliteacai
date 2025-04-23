@@ -66,20 +66,20 @@ export const STORE_LOCATIONS: StoreLocation[] = [
     name: 'Elite Açaí 1',
     latitude: -3.859981833155958,
     longitude: -38.63311136233465,
-    radius: 20 // 20 meters radius
+    radius: 40 // 40 meters radius
   },
   {
     id: 'store2',
     name: 'Elite Açaí 2',
     latitude: -3.8585200957980037,
     longitude: -38.63444706015108,
-    radius: 20 // 20 meters radius
+    radius: 40 // 40 meters radius
   },
   {
     id: 'store3',
     name: 'Elite Açaí 3',
     latitude: -3.8633379,
     longitude: -38.6319105,
-    radius: 20 // 20 meters radius
+    radius: 40 // 40 meters radius
   }
 ];

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Phone, Wallet, History, ArrowLeftRight, CreditCard, ChevronRight, Clock, CheckCircle2, XCircle, Image, FileText, User, Eye, EyeOff } from 'lucide-react';
+import { Phone, Wallet, History, ArrowLeftRight, CreditCard, ChevronRight, Clock, CheckCircle2, XCircle, Image, FileText, User } from 'lucide-react';
 import type { Customer, Transaction } from '../../types';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
@@ -14,8 +14,6 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [generatingReport, setGeneratingReport] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [customerPassword, setCustomerPassword] = useState<string | null>(null);
   
   const CASHBACK_RATE = 0.05; // 5% de cashback
 
@@ -239,31 +237,6 @@ export default function AdminDashboard() {
     });
   };
 
-  const fetchCustomerPassword = async (phone: string) => {
-    try {
-      const { data: passwordHash, error } = await supabase
-        .rpc('get_customer_password_hash', {
-          p_phone: phone
-        });
-
-      if (error) throw error;
-      setCustomerPassword(passwordHash);
-    } catch (error) {
-      console.error('Error fetching password:', error);
-      toast.error('Erro ao buscar senha do cliente');
-    }
-  };
-
-  const handleCustomerSelect = async (customer: Customer) => {
-    setActiveCustomer(customer);
-    setCustomerPassword(null);
-    setShowPassword(false);
-    
-    if (customer) {
-      await fetchCustomerPassword(customer.phone);
-    }
-  };
-
   const renderTransaction = (transaction: Transaction) => (
     <div key={transaction.id} className="transaction-item">
       <div className="flex items-start justify-between gap-4">
@@ -384,7 +357,7 @@ export default function AdminDashboard() {
               {customers.map(customer => (
                 <button
                   key={customer.id}
-                  onClick={() => handleCustomerSelect(customer)}
+                  onClick={() => setActiveCustomer(customer)}
                   className={`w-full text-left p-4 rounded-xl transition-all duration-200 flex items-center justify-between ${
                     activeCustomer?.id === customer.id
                       ? 'bg-primary-50 border-primary-200 border'
@@ -432,30 +405,10 @@ export default function AdminDashboard() {
               <div className="glass-card p-6">
                 <h2 className="card-header">
                   <Wallet className="w-5 h-5 text-primary-600" />
-                  Dados do Cliente
+                  Saldo do Cliente
                 </h2>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="text-gray-600">Senha cadastrada:</div>
-                    <div className="flex items-center gap-2">
-                      <div className="font-mono bg-gray-100 px-3 py-1.5 rounded">
-                        {showPassword ? customerPassword : '••••••'}
-                      </div>
-                      <button
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="text-gray-500 hover:text-gray-700"
-                      >
-                        {showPassword ? (
-                          <Eye className="w-4 h-4" />
-                        ) : (
-                          <EyeOff className="w-4 h-4" />
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                  <div className="text-4xl font-bold text-primary-600 mt-6">
-                    R$ {activeCustomer.balance.toFixed(2)}
-                  </div>
+                <div className="text-4xl font-bold text-primary-600 mb-6">
+                  R$ {activeCustomer.balance.toFixed(2)}
                 </div>
                 
                 <form onSubmit={addTransaction} className="space-y-4">
