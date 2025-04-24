@@ -4,12 +4,13 @@ import { Link } from 'react-router-dom';
 import type { Customer, Transaction } from '../../types';
 import { supabase } from '../../lib/supabase';
 import { sendWhatsAppNotification } from '../../lib/notifications';
+import { redeemCashback } from '../../utils/transactions';
 import toast from 'react-hot-toast';
 import { getCurrentPosition, isWithinStoreRange, getClosestStore, formatDistance } from '../../utils/geolocation';
 
 const CASHBACK_RATE = 0.05; // 5% cashback
 
-function ClientDashboard() {
+export default function ClientDashboard() {
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [phoneNumber, setPhoneNumber] = useState('');
   const [name, setName] = useState('');
@@ -40,24 +41,40 @@ function ClientDashboard() {
     if (!customer?.id) return;
 
     try {
-      const { data: transactions, error } = await supabase
+      const { data: balance, error } = await supabase
+        .rpc('get_available_balance', { p_customer_id: customer.id });
+
+      if (error) throw error;
+
+      setAvailableBalance(balance || 0);
+
+      // Update customer data
+      const { data: updatedCustomer, error: customerError } = await supabase
+        .from('customers')
+        .select('*')
+        .eq('id', customer.id)
+        .single();
+
+      if (customerError) throw customerError;
+      if (updatedCustomer) {
+        setCustomer(updatedCustomer);
+      }
+
+      // Find next expiring amount
+      const { data: expiringTransactions, error: expiringError } = await supabase
         .from('transactions')
         .select('cashback_amount, expires_at')
         .eq('customer_id', customer.id)
         .eq('type', 'purchase')
         .eq('status', 'approved')
         .gt('expires_at', new Date().toISOString())
-        .order('expires_at', { ascending: true });
+        .order('expires_at', { ascending: true })
+        .limit(1);
 
-      if (error) throw error;
+      if (expiringError) throw expiringError;
 
-      // Calculate total available balance
-      const total = transactions?.reduce((sum, t) => sum + (t.cashback_amount || 0), 0) || 0;
-      setAvailableBalance(total);
-
-      // Find next expiring amount
-      if (transactions && transactions.length > 0) {
-        const nextExpiring = transactions[0];
+      if (expiringTransactions && expiringTransactions.length > 0) {
+        const nextExpiring = expiringTransactions[0];
         setNextExpiringAmount({
           amount: nextExpiring.cashback_amount,
           date: new Date(nextExpiring.expires_at)
@@ -68,20 +85,6 @@ function ClientDashboard() {
     } catch (error) {
       console.error('Error calculating balance:', error);
       toast.error('Erro ao calcular saldo disponível');
-    }
-  };
-
-  const formatExpirationDate = (date: Date) => {
-    const now = new Date();
-    const diffTime = date.getTime() - now.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
-    if (diffDays === 1) {
-      return 'Expira amanhã';
-    } else if (diffDays > 1) {
-      return `Expira em ${diffDays} dias`;
-    } else {
-      return 'Expira hoje';
     }
   };
 
@@ -97,10 +100,64 @@ function ClientDashboard() {
 
       if (error) throw error;
       setTransactions(data || []);
-      await calculateAvailableBalance();
     } catch (error: any) {
       console.error('Error loading transactions:', error);
       toast.error('Erro ao carregar transações');
+    }
+  };
+
+  const handleRedeemCashback = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!customer) return;
+
+    const amount = parseFloat(redemptionAmount);
+    if (isNaN(amount) || amount <= 0) {
+      toast.error('Por favor, insira um valor válido para resgate');
+      return;
+    }
+
+    if (amount > availableBalance) {
+      toast.error(`Valor máximo para resgate é R$ ${availableBalance.toFixed(2)}`);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { redemption, error } = await redeemCashback(customer.id, amount);
+
+      if (error) {
+        toast.error(error);
+        return;
+      }
+
+      // Refresh data
+      await Promise.all([
+        loadTransactions(),
+        calculateAvailableBalance()
+      ]);
+
+      toast.success(`Resgate de R$ ${amount.toFixed(2)} realizado com sucesso!`);
+      setShowRedemptionForm(false);
+      setRedemptionAmount('');
+    } catch (error: any) {
+      console.error('Error:', error);
+      toast.error(error.message || 'Erro ao resgatar cashback');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatExpirationDate = (date: Date) => {
+    const now = new Date();
+    const diffTime = date.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 1) {
+      return 'Expira amanhã';
+    } else if (diffDays > 1) {
+      return `Expira em ${diffDays} dias`;
+    } else {
+      return 'Expira hoje';
     }
   };
 
@@ -373,59 +430,6 @@ function ClientDashboard() {
     }
   };
 
-  const redeemCashback = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!customer) return;
-
-    const amount = parseFloat(redemptionAmount);
-    if (isNaN(amount) || amount <= 0) {
-      toast.error('Por favor, insira um valor válido para resgate');
-      return;
-    }
-
-    if (amount > availableBalance) {
-      toast.error(`Valor máximo para resgate é R$ ${availableBalance.toFixed(2)}`);
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const { error } = await supabase
-        .from('transactions')
-        .insert({
-          customer_id: customer.id,
-          amount: amount,
-          cashback_amount: -amount,
-          type: 'redemption',
-          status: 'approved'
-        })
-        .select('id')
-        .single();
-
-      if (error) {
-        if (error.message.includes('Insufficient balance for redemption')) {
-          toast.error('Você não possui cashback válido suficiente para este resgate. Verifique o saldo disponível e a data de expiração.');
-          return;
-        }
-        throw error;
-      }
-
-      await Promise.all([
-        loadTransactions(),
-        calculateAvailableBalance()
-      ]);
-
-      toast.success(`Resgate de R$ ${amount.toFixed(2)} realizado com sucesso!`);
-      setShowRedemptionForm(false);
-      setRedemptionAmount('');
-    } catch (error: any) {
-      console.error('Error:', error);
-      toast.error('Erro ao resgatar cashback');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleLogout = () => {
     setCustomer(null);
     setTransactions([]);
@@ -447,32 +451,6 @@ function ClientDashboard() {
       minute: '2-digit'
     });
   };
-
-  function renderTransactionStatus(status: Transaction['status']) {
-    switch (status) {
-      case 'pending':
-        return (
-          <span className="status-badge pending">
-            <Clock className="w-4 h-4" />
-            Pendente
-          </span>
-        );
-      case 'approved':
-        return (
-          <span className="status-badge approved">
-            <CheckCircle2 className="w-4 h-4" />
-            Aprovado
-          </span>
-        );
-      case 'rejected':
-        return (
-          <span className="status-badge rejected">
-            <XCircle className="w-4 h-4" />
-            Rejeitado
-          </span>
-        );
-    }
-  }
 
   if (!customer) {
     return (
@@ -677,14 +655,13 @@ function ClientDashboard() {
               {customer.phone}
             </p>
           </div>
-          <div className="balance-section">
-            <div className="balance-decoration"></div>
-            <div className="balance-label">Seu saldo disponível</div>
-            <div className="balance-amount">
+          <div className="text-right">
+            <div className="text-sm text-gray-600 mb-1">Seu saldo disponível</div>
+            <div className="text-3xl font-bold text-purple-600">
               R$ {availableBalance.toFixed(2)}
             </div>
             {nextExpiringAmount && (
-              <div className="balance-expiration">
+              <div className="mt-2 text-sm flex items-center gap-1 text-orange-600">
                 <AlertCircle className="w-4 h-4" />
                 <span>
                   R$ {nextExpiringAmount.amount.toFixed(2)} - {formatExpirationDate(nextExpiringAmount.date)}
@@ -738,7 +715,7 @@ function ClientDashboard() {
                     <Gift className="w-5 h-5 text-purple-600" />
                     Resgatar Cashback
                   </h3>
-                  <form onSubmit={redeemCashback} className="space-y-4">
+                  <form onSubmit={handleRedeemCashback} className="space-y-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Valor para Resgate
@@ -837,7 +814,6 @@ function ClientDashboard() {
                   className="w-full text-left"
                 >
                   <div className="flex items-center justify-between">
-                    
                     <div>
                       <div className="font-medium flex items-center gap-2">
                         {transaction.type === 'purchase' ? (
@@ -845,15 +821,9 @@ function ClientDashboard() {
                         ) : (
                           <Gift className="w-4 h-4 text-purple-600" />
                         )}
-                        {transaction.type === 'purchase' ?'Compra' : 'Resgate'}
-                        {expandedTransactionId === transaction.id ? (
-                          <ChevronUp className="w-4 h-4 text-gray-500" />
-                        ) : (
-                          <ChevronDown className="w-4 h-4 text-gray-500" />
-                        )}
+                        {transaction.type === 'purchase' ? 'Compra'  : 'Resgate'}
                       </div>
-                      <div className="text-sm text-gray-600 flex items-center gap-1.5 mt-1">
-                        <Clock className="w-4 h-4" />
+                      <div className="text-sm text-gray-600">
                         {formatDateTime(transaction.created_at)}
                       </div>
                     </div>
@@ -861,58 +831,69 @@ function ClientDashboard() {
                       <div className="font-medium">
                         R$ {transaction.amount.toFixed(2)}
                       </div>
-                      <div className={`text-sm ${
-                        transaction.type === 'purchase'
-                          ? 'text-green-600'
-                          : 'text-purple-600'
-                      }`}>
-                        {transaction.type === 'purchase' ? '+' : '-'}
-                        R$ {Math.abs(transaction.cashback_amount).toFixed(2)} cashback
-                      </div>
+                      {transaction.type === 'purchase' && (
+                        <div className="text-sm text-purple-600">
+                          + R$ {transaction.cashback_amount.toFixed(2)} cashback
+                        </div>
+                      )}
+                    
                     </div>
+                  </div>
+
+                  <div className="flex items-center justify-between mt-2">
+                    <div className="flex items-center gap-2">
+                      {transaction.status === 'approved' ? (
+                        <>
+                          <CheckCircle2 className="w-4 h-4 text-green-500" />
+                          <span className="text-sm text-green-600">Aprovado</span>
+                        </>
+                      ) : transaction.status === 'pending' ? (
+                        <>
+                          <Clock className="w-4 h-4 text-orange-500" />
+                          <span className="text-sm text-orange-600">Pendente</span>
+                        </>
+                      ) : (
+                        <>
+                          <XCircle className="w-4 h-4 text-red-500" />
+                          <span className="text-sm text-red-600">Rejeitado</span>
+                        </>
+                      )}
+                    </div>
+                    {expandedTransactionId === transaction.id ? (
+                      <ChevronUp className="w-4 h-4 text-gray-400" />
+                    ) : (
+                      <ChevronDown className="w-4 h-4 text-gray-400" />
+                    )}
                   </div>
                 </button>
 
                 {expandedTransactionId === transaction.id && (
-                  <div className="mt-4 pt-4 border-t border-purple-100">
+                  <div className="mt-4 pt-4 border-t border-gray-100">
                     <div className="space-y-2">
                       <div className="flex items-center justify-between text-sm">
-                        <span className="text-gray-600">Status:</span>
-                        {renderTransactionStatus(transaction.status)}
+                        <span className="text-gray-600">ID da Transação</span>
+                        <span className="font-mono text-gray-900">{transaction.id}</span>
                       </div>
-                      {transaction.type === 'purchase' && (
-                        <>
-                          <div className="flex items-center justify-between text-sm">
-                            <span className="text-gray-600">Cashback (5%):</span>
-                            <span className="text-green-600">
-                              R$ {transaction.cashback_amount.toFixed(2)}
-                            </span>
-                          </div>
-                          {transaction.expires_at && (
-                            <div className="flex items-center justify-between text-sm">
-                              <span className="text-gray-600">Expira em:</span>
-                              <span className="text-orange-600">
-                                {new Date(transaction.expires_at).toLocaleDateString('pt-BR', {
-                                  day: '2-digit',
-                                  month: 'long',
-                                  year: 'numeric'
-                                })}
-                              </span>
-                            </div>
-                          )}
-                        </>
-                      )}
                       {transaction.receipt_url && (
-                        <div className="mt-3">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-600">Comprovante</span>
                           <a
                             href={transaction.receipt_url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-sm text-purple-600 hover:text-purple-700 flex items-center gap-1.5"
+                            className="text-purple-600 hover:text-purple-700 transition-colors flex items-center gap-1"
                           >
                             <Receipt className="w-4 h-4" />
                             Ver comprovante
                           </a>
+                        </div>
+                      )}
+                      {transaction.type === 'purchase' && transaction.expires_at && (
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-600">Cashback expira em</span>
+                          <span className="text-gray-900">
+                            {new Date(transaction.expires_at).toLocaleDateString('pt-BR')}
+                          </span>
                         </div>
                       )}
                     </div>
@@ -920,19 +901,8 @@ function ClientDashboard() {
                 )}
               </div>
             ))}
-
-          {transactions.filter(t => 
-            activeTab === 'purchases' ? t.type === 'purchase' : t.type === 'redemption'
-          ).length === 0 && (
-            <div className="text-center text-gray-500 py-8">
-              <History className="w-12 h-12 mx-auto mb-3 text-gray-400" />
-              <p>Nenhuma transação encontrada</p>
-            </div>
-          )}
         </div>
       </div>
     </div>
   );
 }
-
-export default ClientDashboard;

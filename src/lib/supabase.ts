@@ -9,11 +9,19 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    persistSession: true, // Enable session persistence
-    storageKey: 'supabase.auth.token', // Key used for storing the session
-    storage: localStorage, // Use localStorage for session persistence
-    autoRefreshToken: true, // Enable automatic token refresh
+    persistSession: true,
+    storageKey: 'supabase.auth.token',
+    storage: localStorage,
+    autoRefreshToken: true,
   },
+  db: {
+    schema: 'public'
+  },
+  global: {
+    headers: {
+      'x-client-info': 'elite-acai-app'
+    }
+  }
 });
 
 // Initialize session on app load
@@ -22,10 +30,8 @@ supabase.auth.getSession().catch(console.error);
 // Set up auth state change listener
 supabase.auth.onAuthStateChange((event, session) => {
   if (event === 'SIGNED_OUT') {
-    // Clear any auth-related storage
     localStorage.removeItem('supabase.auth.token');
   } else if (event === 'SIGNED_IN' && session) {
-    // Ensure the session is properly stored
     localStorage.setItem('supabase.auth.token', JSON.stringify(session));
   }
 });
