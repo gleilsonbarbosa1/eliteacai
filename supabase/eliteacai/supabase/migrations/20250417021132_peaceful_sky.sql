@@ -1,0 +1,91 @@
+/*
+  # Update password recovery to use email
+
+  1. Changes
+    - Add email column to customers table
+    - Update password reset functions to use email
+    - Add email format validation
+
+  2. Security
+    - Maintain existing token security
+    - Add email format validation
+*/
+
+-- Add email column
+ALTER TABLE customers
+ADD COLUMN IF NOT EXISTS email text;
+
+-- Add email format check
+ALTER TABLE customers
+ADD CONSTRAINT customers_email_format_check 
+CHECK (email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$');
+
+-- Create index for email lookups
+CREATE INDEX IF NOT EXISTS idx_customers_email 
+ON customers (email) 
+WHERE email IS NOT NULL;
+
+-- Drop existing functions
+DROP FUNCTION IF EXISTS generate_customer_reset_token(text);
+DROP FUNCTION IF EXISTS reset_customer_password(text, text, text);
+
+-- Create new function to generate reset token using email
+CREATE OR REPLACE FUNCTION generate_customer_reset_token(p_email text)
+RETURNS text AS $$
+DECLARE
+  v_token text;
+  v_customer_id uuid;
+BEGIN
+  -- Check if email exists
+  SELECT id INTO v_customer_id
+  FROM customers
+  WHERE email = p_email;
+
+  IF v_customer_id IS NULL THEN
+    RAISE EXCEPTION 'Email not found';
+  END IF;
+
+  -- Generate token
+  v_token := encode(gen_random_bytes(32), 'hex');
+
+  -- Store token with expiration
+  UPDATE customers
+  SET reset_token = v_token,
+      reset_token_expires_at = now() + interval '1 hour'
+  WHERE id = v_customer_id;
+
+  RETURN v_token;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Create new function to reset password using email
+CREATE OR REPLACE FUNCTION reset_customer_password(
+  p_email text,
+  p_token text,
+  p_new_password text
+)
+RETURNS boolean AS $$
+DECLARE
+  v_customer_id uuid;
+BEGIN
+  -- Find customer with valid token
+  SELECT id INTO v_customer_id
+  FROM customers
+  WHERE email = p_email
+    AND reset_token = p_token
+    AND reset_token_expires_at > now();
+
+  IF v_customer_id IS NULL THEN
+    RETURN false;
+  END IF;
+
+  -- Reset password and clear token
+  UPDATE customers
+  SET password_hash = p_new_password,
+      reset_token = NULL,
+      reset_token_expires_at = NULL
+  WHERE id = v_customer_id;
+
+  RETURN true;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
