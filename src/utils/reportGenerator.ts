@@ -2,6 +2,8 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import type { Customer } from '../types';
 
+const CUSTOMERS_PER_PAGE = 20;
+
 export const generateCustomerReport = async (customers: Customer[]) => {
   // Create new PDF document
   const doc = new jsPDF();
@@ -44,11 +46,46 @@ export const generateCustomerReport = async (customers: Customer[]) => {
       : 'Nunca'
   ]);
 
-  // Add table
+  // Calculate total pages needed
+  const totalPages = Math.ceil(tableData.length / CUSTOMERS_PER_PAGE);
+
+  // Add page number text to first page
+  doc.setFontSize(10);
+  doc.setTextColor(100);
+  doc.text(`Página 1 de ${totalPages}`, doc.internal.pageSize.getWidth() / 2, doc.internal.pageSize.getHeight() - 10, { align: 'center' });
+
+  // Add first table starting at y=80
+  addTableToPage(doc, tableData.slice(0, CUSTOMERS_PER_PAGE), 80);
+
+  // Add remaining pages
+  for (let page = 1; page < totalPages; page++) {
+    doc.addPage();
+    
+    // Add page number
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(
+      `Página ${page + 1} de ${totalPages}`,
+      doc.internal.pageSize.getWidth() / 2,
+      doc.internal.pageSize.getHeight() - 10,
+      { align: 'center' }
+    );
+
+    // Add table starting at y=20 for subsequent pages
+    const startIdx = page * CUSTOMERS_PER_PAGE;
+    const endIdx = startIdx + CUSTOMERS_PER_PAGE;
+    addTableToPage(doc, tableData.slice(startIdx, endIdx), 20);
+  }
+
+  // Save the PDF
+  doc.save(`relatorio-clientes-${new Date().toISOString().split('T')[0]}.pdf`);
+};
+
+const addTableToPage = (doc: jsPDF, data: string[][], startY: number) => {
   autoTable(doc, {
     head: [['Nome', 'Telefone', 'Saldo', 'Data de Cadastro', 'Último Acesso']],
-    body: tableData,
-    startY: 80,
+    body: data,
+    startY,
     styles: {
       fontSize: 10,
       cellPadding: 5,
@@ -68,22 +105,14 @@ export const generateCustomerReport = async (customers: Customer[]) => {
       3: { cellWidth: 35 }, // Data de Cadastro
       4: { cellWidth: 35 }, // Último Acesso
     },
+    margin: { top: 20 },
+    didDrawPage: (data) => {
+      // Add header to each page
+      if (data.pageNumber > 1) {
+        doc.setFontSize(14);
+        doc.setTextColor(147, 51, 234);
+        doc.text('Sistema de Cashback - Relatório de Clientes', 14, 15);
+      }
+    }
   });
-
-  // Add footer
-  const pageCount = doc.getNumberOfPages();
-  doc.setFontSize(8);
-  doc.setTextColor(100);
-  for (let i = 1; i <= pageCount; i++) {
-    doc.setPage(i);
-    doc.text(
-      `Página ${i} de ${pageCount}`,
-      doc.internal.pageSize.getWidth() / 2,
-      doc.internal.pageSize.getHeight() - 10,
-      { align: 'center' }
-    );
-  }
-
-  // Save the PDF
-  doc.save(`relatorio-clientes-${new Date().toISOString().split('T')[0]}.pdf`);
 };

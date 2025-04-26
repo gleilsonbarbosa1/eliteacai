@@ -1,39 +1,122 @@
 import { useState, useEffect } from 'react';
-import { Phone, Wallet, History, ArrowLeftRight, CreditCard, ChevronRight, Clock, CheckCircle2, XCircle, Image, FileText, User } from 'lucide-react';
+import { Phone, Wallet, History, ArrowLeftRight, CreditCard, ChevronRight, Clock, CheckCircle2, XCircle, Image, FileText, User, Gift, ChevronLeft } from 'lucide-react';
 import type { Customer, Transaction } from '../../types';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
 import { sendWhatsAppNotification } from '../../lib/notifications';
 import { generateCustomerReport } from '../../utils/reportGenerator';
 
+interface CustomerWithLastRedemption extends Customer {
+  last_redemption?: {
+    amount: number;
+    created_at: string;
+  };
+  total_transactions?: number;
+}
+
 export default function AdminDashboard() {
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [activeCustomer, setActiveCustomer] = useState<Customer | null>(null);
+  const [customers, setCustomers] = useState<CustomerWithLastRedemption[]>([]);
+  const [activeCustomer, setActiveCustomer] = useState<CustomerWithLastRedemption | null>(null);
   const [transactionAmount, setTransactionAmount] = useState('');
   const [pendingTransactions, setPendingTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [generatingReport, setGeneratingReport] = useState(false);
+  const [totalRedemptions, setTotalRedemptions] = useState(0);
+  const [todayRedemptions, setTodayRedemptions] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCustomers, setTotalCustomers] = useState(0);
   
-  const CASHBACK_RATE = 0.05; // 5% de cashback
+  const ITEMS_PER_PAGE = 10;
+  const CASHBACK_RATE = 0.05;
 
   useEffect(() => {
     loadCustomers();
     loadPendingTransactions();
-  }, []);
+    loadRedemptionStats();
+  }, [currentPage]);
 
   const loadCustomers = async () => {
     try {
-      const { data, error } = await supabase
+      const { count } = await supabase
         .from('customers')
-        .select('*')
-        .order('created_at', { ascending: false });
+        .select('*', { count: 'exact', head: true });
 
-      if (error) throw error;
-      setCustomers(data || []);
+      setTotalCustomers(count || 0);
+      setTotalPages(Math.ceil((count || 0) / ITEMS_PER_PAGE));
+
+      const { data: customersData, error: customersError } = await supabase
+        .from('customers')
+        .select(`
+          *,
+          transactions:transactions(count)
+        `)
+        .order('created_at', { ascending: false })
+        .range((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE - 1);
+
+      if (customersError) throw customersError;
+
+      const customersWithData = await Promise.all(
+        (customersData || []).map(async (customer: any) => {
+          const { data: redemptions } = await supabase
+            .from('transactions')
+            .select('amount, created_at')
+            .eq('customer_id', customer.id)
+            .eq('type', 'redemption')
+            .eq('status', 'approved')
+            .order('created_at', { ascending: false })
+            .limit(1);
+
+          return {
+            ...customer,
+            total_transactions: customer.transactions?.[0]?.count || 0,
+            last_redemption: redemptions?.[0] || null
+          };
+        })
+      );
+
+      customersWithData.sort((a, b) => 
+        (b.total_transactions || 0) - (a.total_transactions || 0)
+      );
+
+      setCustomers(customersWithData);
     } catch (error: any) {
       console.error('Error loading customers:', error);
       toast.error('Erro ao carregar clientes');
+    }
+  };
+
+  const loadRedemptionStats = async () => {
+    try {
+      const { data: total, error: totalError } = await supabase
+        .from('transactions')
+        .select('amount')
+        .eq('type', 'redemption')
+        .eq('status', 'approved');
+
+      if (totalError) throw totalError;
+
+      const totalAmount = total?.reduce((sum, t) => sum + (t.amount || 0), 0) || 0;
+      setTotalRedemptions(totalAmount);
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const { data: todayData, error: todayError } = await supabase
+        .from('transactions')
+        .select('amount')
+        .eq('type', 'redemption')
+        .eq('status', 'approved')
+        .gte('created_at', today.toISOString());
+
+      if (todayError) throw todayError;
+
+      const todayAmount = todayData?.reduce((sum, t) => sum + (t.amount || 0), 0) || 0;
+      setTodayRedemptions(todayAmount);
+    } catch (error) {
+      console.error('Error loading redemption stats:', error);
+      toast.error('Erro ao carregar estatísticas de resgates');
     }
   };
 
@@ -72,21 +155,20 @@ export default function AdminDashboard() {
 
       if (error) throw error;
 
-      // Find the transaction to get customer details
       const transaction = pendingTransactions.find(t => t.id === transactionId);
       if (transaction && status === 'approved') {
         await sendWhatsAppNotification({
           type: 'purchase',
           customerId: transaction.customer_id,
-          amount: transaction.amount,
-          cashbackAmount: transaction.cashback_amount
+          amount: transaction.amount || 0,
+          cashbackAmount: transaction.cashback_amount || 0
         });
       }
 
-      // Reload data
       await Promise.all([
         loadPendingTransactions(),
-        loadCustomers()
+        loadCustomers(),
+        loadRedemptionStats()
       ]);
 
       if (activeCustomer) {
@@ -142,13 +224,12 @@ export default function AdminDashboard() {
         cashbackAmount,
       });
 
-      // Reload data
       await Promise.all([
         loadCustomers(),
-        loadPendingTransactions()
+        loadPendingTransactions(),
+        loadRedemptionStats()
       ]);
 
-      // Update active customer
       const updatedCustomer = customers.find(c => c.id === activeCustomer.id);
       if (updatedCustomer) {
         setActiveCustomer(updatedCustomer);
@@ -192,13 +273,12 @@ export default function AdminDashboard() {
         amount: activeCustomer.balance,
       });
 
-      // Reload data
       await Promise.all([
         loadCustomers(),
-        loadPendingTransactions()
+        loadPendingTransactions(),
+        loadRedemptionStats()
       ]);
 
-      // Update active customer
       const updatedCustomer = customers.find(c => c.id === activeCustomer.id);
       if (updatedCustomer) {
         setActiveCustomer(updatedCustomer);
@@ -226,15 +306,24 @@ export default function AdminDashboard() {
     }
   };
 
-  const formatDateTime = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: 'long',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit'
-    });
+  const formatDateTime = (dateString: string | null) => {
+    if (!dateString) return 'Data não disponível';
+    
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return 'Data inválida';
+      
+      return date.toLocaleDateString('pt-BR', {
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return 'Data inválida';
+    }
   };
 
   const renderTransaction = (transaction: Transaction) => (
@@ -255,10 +344,10 @@ export default function AdminDashboard() {
             </div>
           )}
           <div className="text-lg font-medium mb-1">
-            Valor da Compra: R$ {transaction.amount.toFixed(2)}
+            Valor da Compra: R$ {(transaction.amount || 0).toFixed(2)}
           </div>
           <div className="text-sm text-green-600">
-            Cashback (5%): R$ {transaction.cashback_amount.toFixed(2)}
+            Cashback (5%): R$ {(transaction.cashback_amount || 0).toFixed(2)}
           </div>
           <div className="text-sm text-gray-600 mt-2 flex items-center gap-1.5">
             <Clock className="w-4 h-4" />
@@ -296,7 +385,27 @@ export default function AdminDashboard() {
 
   return (
     <div className="space-y-8">
-      {/* Image Preview Modal */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="glass-card p-6">
+          <h2 className="card-header">
+            <Gift className="w-5 h-5 text-purple-600" />
+            Resgates Hoje
+          </h2>
+          <div className="text-3xl font-bold text-purple-600">
+            R$ {todayRedemptions.toFixed(2)}
+          </div>
+        </div>
+        <div className="glass-card p-6">
+          <h2 className="card-header">
+            <Wallet className="w-5 h-5 text-purple-600" />
+            Total de Resgates
+          </h2>
+          <div className="text-3xl font-bold text-purple-600">
+            R$ {totalRedemptions.toFixed(2)}
+          </div>
+        </div>
+      </div>
+
       {selectedImage && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setSelectedImage(null)}>
           <div className="bg-white rounded-3xl overflow-hidden max-w-3xl w-full max-h-[90vh] relative" onClick={e => e.stopPropagation()}>
@@ -322,7 +431,6 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* Pending Transactions Section */}
       {pendingTransactions.length > 0 && (
         <div className="glass-card p-6">
           <h2 className="card-header">
@@ -335,14 +443,13 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* Main Dashboard Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="space-y-6">
           <div className="glass-card p-6">
             <div className="flex items-center justify-between mb-6">
               <h2 className="card-header !mb-0">
                 <Phone className="w-5 h-5 text-primary-600" />
-                Clientes
+                Clientes ({totalCustomers})
               </h2>
               <button
                 onClick={handleGenerateReport}
@@ -376,8 +483,20 @@ export default function AdminDashboard() {
                       {customer.phone}
                     </div>
                     <div className="text-sm text-gray-600">
-                      Saldo: R$ {customer.balance.toFixed(2)}
+                      Saldo: R$ {(customer.balance || 0).toFixed(2)}
                     </div>
+                    <div className="text-sm text-purple-600">
+                      Total de transações: {customer.total_transactions || 0}
+                    </div>
+                    {customer.last_redemption && (
+                      <div className="text-sm text-purple-600 mt-1 flex items-center gap-1">
+                        <Gift className="w-3 h-3" />
+                        Último resgate: R$ {(customer.last_redemption.amount || 0).toFixed(2)}
+                        <span className="text-gray-500 text-xs">
+                          ({formatDateTime(customer.last_redemption.created_at)})
+                        </span>
+                      </div>
+                    )}
                     <div className="text-xs text-gray-500 mt-1 flex items-center gap-1">
                       <Clock className="w-3 h-3" />
                       Cadastro: {formatDateTime(customer.created_at)}
@@ -396,6 +515,30 @@ export default function AdminDashboard() {
                 </div>
               )}
             </div>
+
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between mt-6 pt-6 border-t border-gray-100">
+                <button
+                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                  disabled={currentPage === 1}
+                  className="btn-secondary py-2 px-4 flex items-center gap-2 disabled:opacity-50"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  Anterior
+                </button>
+                <span className="text-sm text-gray-600">
+                  Página {currentPage} de {totalPages}
+                </span>
+                <button
+                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                  disabled={currentPage === totalPages}
+                  className="btn-secondary py-2 px-4 flex items-center gap-2 disabled:opacity-50"
+                >
+                  Próxima
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -408,7 +551,7 @@ export default function AdminDashboard() {
                   Saldo do Cliente
                 </h2>
                 <div className="text-4xl font-bold text-primary-600 mb-6">
-                  R$ {activeCustomer.balance.toFixed(2)}
+                  R$ {(activeCustomer.balance || 0).toFixed(2)}
                 </div>
                 
                 <form onSubmit={addTransaction} className="space-y-4">
@@ -466,7 +609,7 @@ export default function AdminDashboard() {
                             {transaction.type === 'purchase' ? (
                               <CreditCard className="w-4 h-4 text-primary-600" />
                             ) : (
-                              <Wallet className="w-4 h-4 text-secondary-600" />
+                              <Gift className="w-4 h-4 text-secondary-600" />
                             )}
                             {transaction.type === 'purchase' ? 'Compra' : 'Resgate'}
                           </div>
@@ -495,7 +638,7 @@ export default function AdminDashboard() {
                         </div>
                         <div className="text-right">
                           <div className="font-medium">
-                            R$ {transaction.amount.toFixed(2)}
+                            R$ {(transaction.amount || 0).toFixed(2)}
                           </div>
                           <div className={`text-sm ${
                             transaction.type === 'purchase'
@@ -503,7 +646,7 @@ export default function AdminDashboard() {
                               : 'text-red-600'
                           }`}>
                             {transaction.type === 'purchase' ? '+' : ''}
-                            R$ {Math.abs(transaction.cashback_amount).toFixed(2)} cashback
+                            R$ {Math.abs(transaction.cashback_amount || 0).toFixed(2)} cashback
                           </div>
                         </div>
                       </div>

@@ -4,9 +4,9 @@ import { Link } from 'react-router-dom';
 import type { Customer, Transaction } from '../../types';
 import { supabase } from '../../lib/supabase';
 import { sendWhatsAppNotification } from '../../lib/notifications';
-import { redeemCashback } from '../../utils/transactions';
 import toast from 'react-hot-toast';
 import { getCurrentPosition, isWithinStoreRange, getClosestStore, formatDistance } from '../../utils/geolocation';
+import { getAvailableBalance, getNextExpiringCashback, getExpiredCashback } from '../../utils/transactions';
 
 const CASHBACK_RATE = 0.05; // 5% cashback
 
@@ -18,7 +18,7 @@ export default function ClientDashboard() {
   const [dateOfBirth, setDateOfBirth] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [isLogin, setIsLogin] = useState(false);
+  const [isLogin, setIsLogin] = useState(true);
   const [transactionAmount, setTransactionAmount] = useState('');
   const [showRedemptionForm, setShowRedemptionForm] = useState(false);
   const [redemptionAmount, setRedemptionAmount] = useState('');
@@ -41,47 +41,13 @@ export default function ClientDashboard() {
     if (!customer?.id) return;
 
     try {
-      const { data: balance, error } = await supabase
-        .rpc('get_available_balance', { p_customer_id: customer.id });
+      const [balance, nextExpiring] = await Promise.all([
+        getAvailableBalance(customer.id),
+        getNextExpiringCashback(customer.id)
+      ]);
 
-      if (error) throw error;
-
-      setAvailableBalance(balance || 0);
-
-      // Update customer data
-      const { data: updatedCustomer, error: customerError } = await supabase
-        .from('customers')
-        .select('*')
-        .eq('id', customer.id)
-        .single();
-
-      if (customerError) throw customerError;
-      if (updatedCustomer) {
-        setCustomer(updatedCustomer);
-      }
-
-      // Find next expiring amount
-      const { data: expiringTransactions, error: expiringError } = await supabase
-        .from('transactions')
-        .select('cashback_amount, expires_at')
-        .eq('customer_id', customer.id)
-        .eq('type', 'purchase')
-        .eq('status', 'approved')
-        .gt('expires_at', new Date().toISOString())
-        .order('expires_at', { ascending: true })
-        .limit(1);
-
-      if (expiringError) throw expiringError;
-
-      if (expiringTransactions && expiringTransactions.length > 0) {
-        const nextExpiring = expiringTransactions[0];
-        setNextExpiringAmount({
-          amount: nextExpiring.cashback_amount,
-          date: new Date(nextExpiring.expires_at)
-        });
-      } else {
-        setNextExpiringAmount(null);
-      }
+      setAvailableBalance(balance);
+      setNextExpiringAmount(nextExpiring);
     } catch (error) {
       console.error('Error calculating balance:', error);
       toast.error('Erro ao calcular saldo disponível');
@@ -99,65 +65,16 @@ export default function ClientDashboard() {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setTransactions(data || []);
-    } catch (error: any) {
-      console.error('Error loading transactions:', error);
-      toast.error('Erro ao carregar transações');
-    }
-  };
 
-  const handleRedeemCashback = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!customer) return;
-
-    const amount = parseFloat(redemptionAmount);
-    if (isNaN(amount) || amount <= 0) {
-      toast.error('Por favor, insira um valor válido para resgate');
-      return;
-    }
-
-    if (amount > availableBalance) {
-      toast.error(`Valor máximo para resgate é R$ ${availableBalance.toFixed(2)}`);
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const { redemption, error } = await redeemCashback(customer.id, amount);
-
-      if (error) {
-        toast.error(error);
+      if (!data) {
+        setTransactions([]);
         return;
       }
 
-      // Refresh data
-      await Promise.all([
-        loadTransactions(),
-        calculateAvailableBalance()
-      ]);
-
-      toast.success(`Resgate de R$ ${amount.toFixed(2)} realizado com sucesso!`);
-      setShowRedemptionForm(false);
-      setRedemptionAmount('');
+      setTransactions(data);
     } catch (error: any) {
-      console.error('Error:', error);
-      toast.error(error.message || 'Erro ao resgatar cashback');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const formatExpirationDate = (date: Date) => {
-    const now = new Date();
-    const diffTime = date.getTime() - now.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
-    if (diffDays === 1) {
-      return 'Expira amanhã';
-    } else if (diffDays > 1) {
-      return `Expira em ${diffDays} dias`;
-    } else {
-      return 'Expira hoje';
+      console.error('Error loading transactions:', error);
+      toast.error('Erro ao carregar transações');
     }
   };
 
@@ -213,15 +130,20 @@ export default function ClientDashboard() {
           return;
         }
 
-        // Fetch customer data
+        // Fetch customer data using maybeSingle() instead of single()
         const { data: customerData, error: customerError } = await supabase
           .from('customers')
           .select('*')
           .eq('id', customerId)
-          .single();
+          .maybeSingle();
 
-        if (customerError || !customerData) {
+        if (customerError) {
           throw new Error('Erro ao carregar dados do cliente');
+        }
+
+        if (!customerData) {
+          toast.error('Cliente não encontrado');
+          return;
         }
 
         setCustomer(customerData);
@@ -233,7 +155,7 @@ export default function ClientDashboard() {
           .from('customers')
           .select('id')
           .eq('phone', cleanPhone)
-          .single();
+          .maybeSingle();
 
         if (existingCustomer) {
           toast.error('Este número já está cadastrado', {
@@ -430,6 +352,105 @@ export default function ClientDashboard() {
     }
   };
 
+  const handleRedeemCashback = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!customer) return;
+
+    const amount = parseFloat(redemptionAmount);
+    if (isNaN(amount) || amount <= 0) {
+      toast.error('Por favor, insira um valor válido para resgate');
+      return;
+    }
+
+    // Enhanced client-side validation with detailed error message
+    if (amount > availableBalance) {
+      toast.error(
+        <div className="flex flex-col gap-2">
+          <p>Saldo insuficiente para resgate</p>
+          <p className="text-sm text-red-600">
+            Saldo disponível: R$ {availableBalance.toFixed(2)}
+            <br />
+            Valor solicitado: R$ {amount.toFixed(2)}
+          </p>
+        </div>,
+        {
+          duration: 5000,
+          icon: '⚠️'
+        }
+      );
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Double-check balance before making the request
+      const currentBalance = await getAvailableBalance(customer.id);
+      
+      if (!currentBalance || amount > currentBalance) {
+        throw new Error(`Saldo insuficiente. Disponível: R$ ${currentBalance?.toFixed(2)}`);
+      }
+
+      // Ensure amount is not greater than current balance
+      if (amount > currentBalance) {
+        toast.error(
+          <div className="flex flex-col gap-2">
+            <p>Saldo insuficiente para resgate</p>
+            <p className="text-sm text-red-600">
+              Saldo atual: R$ {currentBalance.toFixed(2)}
+              <br />
+              Valor solicitado: R$ {amount.toFixed(2)}
+            </p>
+          </div>
+        );
+        return;
+      }
+
+      const { error } = await supabase
+        .from('transactions')
+        .insert({
+          customer_id: customer.id,
+          amount: amount,
+          cashback_amount: -amount,
+          type: 'redemption',
+          status: 'approved'
+        });
+
+      if (error) {
+        if (error.message.includes('Saldo insuficiente')) {
+          toast.error(
+            <div className="flex flex-col gap-2">
+              <p>Saldo insuficiente para resgate</p>
+              <p className="text-sm">Verifique o saldo disponível e a data de expiração.</p>
+            </div>
+          );
+          return;
+        }
+        throw error;
+      }
+
+      await Promise.all([
+        loadTransactions(),
+        calculateAvailableBalance()
+      ]);
+
+      toast.success(
+        <div className="flex flex-col gap-2">
+          <p>Resgate realizado com sucesso!</p>
+          <p className="text-sm text-green-600">
+            Valor resgatado: R$ {amount.toFixed(2)}
+          </p>
+        </div>
+      );
+      setShowRedemptionForm(false);
+      setRedemptionAmount('');
+    } catch (error: any) {
+      console.error('Error:', error);
+      toast.error(error.message || 'Erro ao resgatar cashback');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleLogout = () => {
     setCustomer(null);
     setTransactions([]);
@@ -450,6 +471,20 @@ export default function ClientDashboard() {
       hour: '2-digit',
       minute: '2-digit'
     });
+  };
+
+  const formatExpirationDate = (date: Date) => {
+    const now = new Date();
+    const diffTime = date.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 1) {
+      return 'Expira amanhã';
+    } else if (diffDays > 1) {
+      return `Expira em ${diffDays} dias`;
+    } else {
+      return 'Expira hoje';
+    }
   };
 
   if (!customer) {
@@ -726,9 +761,14 @@ export default function ClientDashboard() {
                         min="0.01"
                         max={availableBalance}
                         value={redemptionAmount}
-                        onChange={e => setRedemptionAmount(e.target.value)}
+                        onChange={(e) => {
+                          const value = parseFloat(e.target.value);
+                          if (!isNaN(value)) {
+                            setRedemptionAmount(e.target.value);
+                          }
+                        }}
                         className="input-field text-lg"
-                        placeholder="0,00"
+                        placeholder={`0,00 (máx: ${availableBalance.toFixed(2)})`}
                         required
                       />
                       <p className="mt-2 text-sm text-gray-500">
@@ -786,7 +826,7 @@ export default function ClientDashboard() {
               className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
                 activeTab === 'purchases'
                   ? 'bg-purple-100 text-purple-700'
-                  : 'text-gray-600 hover:text-purple-600'
+                  : 'text-gray-600 hover: text-purple-600'
               }`}
             >
               Compras
@@ -795,7 +835,7 @@ export default function ClientDashboard() {
               onClick={() => setActiveTab('redemptions')}
               className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
                 activeTab === 'redemptions'
-                  ? 'bg-purple-100 text-purple-700'
+                  ? 'bg-purple-100  text-purple-700'
                   : 'text-gray-600 hover:text-purple-600'
               }`}
             >
@@ -821,7 +861,7 @@ export default function ClientDashboard() {
                         ) : (
                           <Gift className="w-4 h-4 text-purple-600" />
                         )}
-                        {transaction.type === 'purchase' ? 'Compra'  : 'Resgate'}
+                        {transaction.type === 'purchase' ? 'Compra' : 'Resgate'}
                       </div>
                       <div className="text-sm text-gray-600">
                         {formatDateTime(transaction.created_at)}
@@ -836,7 +876,6 @@ export default function ClientDashboard() {
                           + R$ {transaction.cashback_amount.toFixed(2)} cashback
                         </div>
                       )}
-                    
                     </div>
                   </div>
 
