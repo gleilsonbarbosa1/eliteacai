@@ -4,6 +4,9 @@ import ClientLayout from './layouts/ClientLayout';
 import AdminDashboard from './pages/admin/Dashboard';
 import ClientDashboard from './pages/client/Dashboard';
 import PasswordReset from './pages/client/PasswordReset';
+import Terms from './pages/client/Terms';
+import PaymentSuccess from './pages/payment/Success';
+import PaymentCancel from './pages/payment/Cancel';
 import { Toaster } from 'react-hot-toast';
 
 function App() {
@@ -16,7 +19,12 @@ function App() {
         {/* Client Routes */}
         <Route path="/client" element={<ClientLayout />}>
           <Route index element={<ClientDashboard />} />
+          <Route path="terms" element={<Terms />} />
         </Route>
+
+        {/* Payment Routes */}
+        <Route path="/payment/success" element={<PaymentSuccess />} />
+        <Route path="/payment/cancel" element={<PaymentCancel />} />
 
         {/* Password Reset Route */}
         <Route path="/reset-password" element={<PasswordReset />} />

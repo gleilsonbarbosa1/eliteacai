@@ -10,7 +10,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@stripe/stripe-js": "^2.4.0",
     "@supabase/supabase-js": "^2.39.7",
+    "caniuse-lite": "^1.0.30001715",
     "jspdf": "^2.5.1",
     "jspdf-autotable": "^3.8.2",
     "lucide-react": "^0.344.0",

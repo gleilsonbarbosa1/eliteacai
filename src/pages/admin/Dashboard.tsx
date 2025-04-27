@@ -491,7 +491,7 @@ export default function AdminDashboard() {
                     {customer.last_redemption && (
                       <div className="text-sm text-purple-600 mt-1 flex items-center gap-1">
                         <Gift className="w-3 h-3" />
-                        Último resgate: R$ {(customer.last_redemption.amount || 0).toFixed(2)}
+                        Último resgate: R$ {(customer.last_redemption.amount ||0).toFixed(2)}
                         <span className="text-gray-500 text-xs">
                           ({formatDateTime(customer.last_redemption.created_at)})
                         </span>

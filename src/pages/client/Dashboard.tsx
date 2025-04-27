@@ -7,6 +7,7 @@ import { sendWhatsAppNotification } from '../../lib/notifications';
 import toast from 'react-hot-toast';
 import { getCurrentPosition, isWithinStoreRange, getClosestStore, formatDistance } from '../../utils/geolocation';
 import { getAvailableBalance, getNextExpiringCashback, getExpiredCashback } from '../../utils/transactions';
+import CreditsModal from '../../components/CreditsModal';
 
 const CASHBACK_RATE = 0.05; // 5% cashback
 
@@ -29,6 +30,7 @@ export default function ClientDashboard() {
   const [expandedTransactionId, setExpandedTransactionId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [nextExpiringAmount, setNextExpiringAmount] = useState<{ amount: number; date: Date } | null>(null);
+  const [showCreditsModal, setShowCreditsModal] = useState(false);
 
   useEffect(() => {
     if (customer) {
@@ -112,7 +114,6 @@ export default function ClientDashboard() {
       }
 
       if (isLogin) {
-        // Verify the password using RPC function
         const { data: customerId, error: verifyError } = await supabase
           .rpc('verify_customer_password', {
             p_phone: cleanPhone,
@@ -130,7 +131,6 @@ export default function ClientDashboard() {
           return;
         }
 
-        // Fetch customer data using maybeSingle() instead of single()
         const { data: customerData, error: customerError } = await supabase
           .from('customers')
           .select('*')
@@ -149,8 +149,6 @@ export default function ClientDashboard() {
         setCustomer(customerData);
         toast.success('Login realizado com sucesso!');
       } else {
-        // Registration flow
-        // Check if phone number exists
         const { data: existingCustomer } = await supabase
           .from('customers')
           .select('id')
@@ -198,7 +196,6 @@ export default function ClientDashboard() {
           throw new Error('As senhas não coincidem');
         }
 
-        // Create new customer
         const { data: newCustomer, error: createError } = await supabase
           .from('customers')
           .insert({
@@ -214,7 +211,6 @@ export default function ClientDashboard() {
 
         if (createError) throw createError;
 
-        // Send welcome notification
         await sendWhatsAppNotification({
           type: 'welcome',
           customerId: newCustomer.id
@@ -224,7 +220,6 @@ export default function ClientDashboard() {
         toast.success('Cadastro realizado com sucesso!');
       }
 
-      // Clear form
       setPhoneNumber('');
       setName('');
       setEmail('');
@@ -257,7 +252,6 @@ export default function ClientDashboard() {
     setLoading(true);
 
     try {
-      // Check Supabase connection first
       const { error: healthCheckError } = await supabase.from('transactions').select('id').limit(1);
       if (healthCheckError) {
         console.error('Supabase connection error:', healthCheckError);
@@ -273,7 +267,6 @@ export default function ClientDashboard() {
 
       const { latitude, longitude } = position.coords;
 
-      // Check if within range of any store
       if (!isWithinStoreRange(latitude, longitude)) {
         const closestStore = getClosestStore(latitude, longitude);
         if (closestStore) {
@@ -295,12 +288,10 @@ export default function ClientDashboard() {
 
       const cashbackAmount = Number((amount * CASHBACK_RATE).toFixed(2));
 
-      // Add a small delay to prevent duplicate submissions
       await new Promise(resolve => setTimeout(resolve, 500));
 
-      // Calculate expiration date (end of next month)
       const expirationDate = new Date();
-      expirationDate.setMonth(expirationDate.getMonth() + 2, 0); // Last day of next month
+      expirationDate.setMonth(expirationDate.getMonth() + 2, 0);
       expirationDate.setHours(23, 59, 59, 999);
 
       const { error } = await supabase
@@ -362,7 +353,6 @@ export default function ClientDashboard() {
       return;
     }
 
-    // Enhanced client-side validation with detailed error message
     if (amount > availableBalance) {
       toast.error(
         <div className="flex flex-col gap-2">
@@ -383,14 +373,12 @@ export default function ClientDashboard() {
 
     setLoading(true);
     try {
-      // Double-check balance before making the request
       const currentBalance = await getAvailableBalance(customer.id);
       
       if (!currentBalance || amount > currentBalance) {
         throw new Error(`Saldo insuficiente. Disponível: R$ ${currentBalance?.toFixed(2)}`);
       }
 
-      // Ensure amount is not greater than current balance
       if (amount > currentBalance) {
         toast.error(
           <div className="flex flex-col gap-2">
@@ -656,6 +644,18 @@ export default function ClientDashboard() {
                 </div>
               )}
 
+              {!isLogin && (
+                <div className="text-sm text-gray-600">
+                  Ao se cadastrar, você concorda com o{' '}
+                  <Link
+                    to="/client/terms"
+                    className="text-purple-600 hover:text-purple-700 font-medium"
+                  >
+                    Regulamento do Programa
+                  </Link>
+                </div>
+              )}
+
               <button
                 type="submit"
                 className="btn-primary w-full text-lg"
@@ -708,7 +708,16 @@ export default function ClientDashboard() {
 
         <div className="space-y-6">
           <div className="border-t border-b border-purple-100 -mx-8 px-8 py-6">
-            <h3 className="font-medium text-gray-900 mb-4">Registrar Nova Compra</h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-medium text-gray-900">Registrar Nova Compra</h3>
+              <button
+                onClick={() => setShowCreditsModal(true)}
+                className="btn-secondary py-2 px-4 flex items-center gap-2 text-sm"
+              >
+                <Wallet className="w-4 h-4" />
+                Comprar Créditos
+              </button>
+            </div>
             <form onSubmit={addTransaction} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -821,12 +830,13 @@ export default function ClientDashboard() {
             Minhas Transações
           </h2>
           <div className="flex rounded-lg border border-purple-100 p-1">
+            
             <button
               onClick={() => setActiveTab('purchases')}
               className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
                 activeTab === 'purchases'
                   ? 'bg-purple-100 text-purple-700'
-                  : 'text-gray-600 hover: text-purple-600'
+                  : 'text-gray-600 hover:text-purple-600'
               }`}
             >
               Compras
@@ -835,7 +845,7 @@ export default function ClientDashboard() {
               onClick={() => setActiveTab('redemptions')}
               className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
                 activeTab === 'redemptions'
-                  ? 'bg-purple-100  text-purple-700'
+                  ? 'bg-purple-100 text-purple-700'
                   : 'text-gray-600 hover:text-purple-600'
               }`}
             >
@@ -942,6 +952,14 @@ export default function ClientDashboard() {
             ))}
         </div>
       </div>
+
+      {showCreditsModal && (
+        <CreditsModal
+          isOpen={showCreditsModal}
+          onClose={() => setShowCreditsModal(false)}
+          customer={customer}
+        />
+      )}
     </div>
   );
 }

@@ -32,6 +32,16 @@ export interface Transaction {
   };
 }
 
+export interface Credit {
+  id: string;
+  customer_id: string;
+  amount: number;
+  expires_at: string;
+  created_at: string;
+  status: 'pending' | 'approved' | 'rejected';
+  payment_method: 'pix' | 'credit_card' | 'debit_card' | 'cash';
+}
+
 export interface Admin {
   id: string;
   email: string;
