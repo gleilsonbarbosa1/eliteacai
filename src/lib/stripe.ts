@@ -1,5 +1,4 @@
 import { loadStripe } from '@stripe/stripe-js';
-import { supabase } from './supabase';
 
 const stripePublicKey = import.meta.env.VITE_STRIPE_PUBLIC_KEY;
 
@@ -9,31 +8,29 @@ if (!stripePublicKey) {
 
 export const stripe = loadStripe(stripePublicKey);
 
-export async function createCheckoutSession(priceId: string, mode: 'payment' | 'subscription') {
+export async function createCheckoutSession(
+  priceId: string, 
+  mode: 'payment' | 'subscription',
+  email?: string,
+  customerId?: string
+) {
   try {
-    // Get the current session
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-    
-    if (sessionError || !session?.user) {
-      throw new Error('Você precisa estar logado para fazer uma compra.');
-    }
-
-    // Get the current origin for redirect URLs
-    const origin = window.location.origin;
-
+    // Create checkout session
     const response = await fetch(
       `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/stripe-checkout`,
       {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
         },
         body: JSON.stringify({
           price_id: priceId,
-          success_url: `${origin}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
-          cancel_url: `${origin}/payment/cancel`,
+          success_url: `${window.location.origin}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
+          cancel_url: `${window.location.origin}/payment/cancel`,
           mode,
+          customer_email: email,
+          customer_id: customerId
         }),
       }
     );

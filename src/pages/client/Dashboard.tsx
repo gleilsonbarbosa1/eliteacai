@@ -6,16 +6,17 @@ import { supabase } from '../../lib/supabase';
 import { sendWhatsAppNotification } from '../../lib/notifications';
 import toast from 'react-hot-toast';
 import { getCurrentPosition, isWithinStoreRange, getClosestStore, formatDistance } from '../../utils/geolocation';
-import { getAvailableBalance, getNextExpiringCashback, getExpiredCashback } from '../../utils/transactions';
+import { getAvailableBalance, getNextExpiringCashback } from '../../utils/transactions';
 import CreditsModal from '../../components/CreditsModal';
 
-const CASHBACK_RATE = 0.05; // 5% cashback
+const STORE_CASHBACK_RATE = 0.05; // 5% cashback for in-store purchases
+const CREDIT_CASHBACK_RATE = 0.10; // 10% cashback for credit purchases
 
 export default function ClientDashboard() {
   const [customer, setCustomer] = useState<Customer | null>(null);
-  const [phoneNumber, setPhoneNumber] = useState('');
-  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
   const [dateOfBirth, setDateOfBirth] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -98,52 +99,46 @@ export default function ClientDashboard() {
       }
     }
     
-    setPhoneNumber(formattedValue);
+    setPhone(formattedValue);
   };
 
   const handleCustomerSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
     setLoading(true);
 
     try {
-      const cleanPhone = phoneNumber.replace(/\D/g, '');
-      
-      if (cleanPhone.length !== 11) {
-        toast.error('Por favor, insira um número de telefone válido com DDD');
+      if (!email.match(/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/)) {
+        toast.error('Por favor, insira um email válido');
         return;
       }
 
       if (isLogin) {
+        // Get customer ID from verification function
         const { data: customerId, error: verifyError } = await supabase
           .rpc('verify_customer_password', {
-            p_phone: cleanPhone,
+            p_email: email.toLowerCase(),
             p_password: password
           });
 
         if (verifyError) {
           console.error('Error verifying password:', verifyError);
-          toast.error('Erro ao verificar senha');
-          return;
+          throw new Error('Email ou senha incorretos');
         }
 
         if (!customerId) {
-          toast.error('Telefone ou senha incorretos');
-          return;
+          throw new Error('Email ou senha incorretos');
         }
 
+        // Get customer data
         const { data: customerData, error: customerError } = await supabase
           .from('customers')
           .select('*')
           .eq('id', customerId)
-          .maybeSingle();
+          .single();
 
-        if (customerError) {
+        if (customerError || !customerData) {
           throw new Error('Erro ao carregar dados do cliente');
-        }
-
-        if (!customerData) {
-          toast.error('Cliente não encontrado');
-          return;
         }
 
         setCustomer(customerData);
@@ -152,36 +147,31 @@ export default function ClientDashboard() {
         const { data: existingCustomer } = await supabase
           .from('customers')
           .select('id')
-          .eq('phone', cleanPhone)
-          .maybeSingle();
+          .eq('email', email.toLowerCase())
+          .single();
 
         if (existingCustomer) {
-          toast.error('Este número já está cadastrado', {
-            icon: '📱',
-            duration: 5000,
-          });
-          return;
+          throw new Error('Este email já está cadastrado');
         }
 
-        if (!email.match(/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/)) {
-          toast.error('Por favor, insira um email válido');
-          return;
+        if (!phone.match(/^\(\d{2}\) \d{5}-\d{4}$/)) {
+          throw new Error('Por favor, insira um número de telefone válido com DDD');
         }
 
-        const { data: existingEmail } = await supabase
+        const cleanPhone = phone.replace(/\D/g, '');
+
+        const { data: existingPhone } = await supabase
           .from('customers')
           .select('id')
-          .eq('email', email.toLowerCase())
-          .maybeSingle();
+          .eq('phone', cleanPhone)
+          .single();
 
-        if (existingEmail) {
-          toast.error('Este email já está cadastrado');
-          return;
+        if (existingPhone) {
+          throw new Error('Este número já está cadastrado');
         }
 
         if (!dateOfBirth) {
-          toast.error('Por favor, insira sua data de nascimento');
-          return;
+          throw new Error('Por favor, insira sua data de nascimento');
         }
 
         if (!name.trim()) {
@@ -200,8 +190,8 @@ export default function ClientDashboard() {
           .from('customers')
           .insert({
             name: name.trim(),
-            phone: cleanPhone,
             email: email.toLowerCase(),
+            phone: cleanPhone,
             date_of_birth: dateOfBirth,
             password_hash: password,
             balance: 0
@@ -220,9 +210,10 @@ export default function ClientDashboard() {
         toast.success('Cadastro realizado com sucesso!');
       }
 
-      setPhoneNumber('');
-      setName('');
+      // Clear form
       setEmail('');
+      setPhone('');
+      setName('');
       setDateOfBirth('');
       setPassword('');
       setConfirmPassword('');
@@ -286,7 +277,7 @@ export default function ClientDashboard() {
         return;
       }
 
-      const cashbackAmount = Number((amount * CASHBACK_RATE).toFixed(2));
+      const cashbackAmount = Number((amount * STORE_CASHBACK_RATE).toFixed(2));
 
       await new Promise(resolve => setTimeout(resolve, 500));
 
@@ -537,19 +528,23 @@ export default function ClientDashboard() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Seu email
+                      Seu número do WhatsApp
                     </label>
                     <div className="relative">
                       <input
-                        type="email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
+                        type="tel"
+                        value={phone}
+                        onChange={handlePhoneNumberChange}
+                        placeholder="(99) 99999-9999"
                         className="input-field text-lg pl-11"
-                        placeholder="exemplo@email.com"
+                        maxLength={15}
                         required={!isLogin}
                       />
-                      <Mail className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                      <Phone className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
                     </div>
+                    <p className="mt-2 text-sm text-gray-500">
+                      Digite seu número com DDD, exemplo: (85) XXXXX-XXXX
+                    </p>
                   </div>
 
                   <div>
@@ -572,23 +567,19 @@ export default function ClientDashboard() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Seu número do WhatsApp
+                  Seu email
                 </label>
                 <div className="relative">
                   <input
-                    type="tel"
-                    value={phoneNumber}
-                    onChange={handlePhoneNumberChange}
-                    placeholder="(99) 99999-9999"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
                     className="input-field text-lg pl-11"
-                    maxLength={15}
+                    placeholder="exemplo@email.com"
                     required
                   />
-                  <Phone className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                  <Mail className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
                 </div>
-                <p className="mt-2 text-sm text-gray-500">
-                  Digite seu número com DDD, exemplo: (85) XXXXX-XXXX
-                </p>
               </div>
 
               <div>
@@ -735,7 +726,7 @@ export default function ClientDashboard() {
                 {transactionAmount && parseFloat(transactionAmount) > 0 && (
                   <p className="mt-2 text-sm text-purple-600 font-medium flex items-center gap-1">
                     <ArrowRight className="w-4 h-4" />
-                    Você receberá R$ {(parseFloat(transactionAmount) * CASHBACK_RATE).toFixed(2)} em cashback
+                    Você receberá R$ {(parseFloat(transactionAmount) * STORE_CASHBACK_RATE).toFixed(2)} em cashback
                   </p>
                 )}
               </div>
@@ -764,6 +755,7 @@ export default function ClientDashboard() {
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Valor para Resgate
                       </label>
+                      
                       <input
                         type="number"
                         step="0.01"

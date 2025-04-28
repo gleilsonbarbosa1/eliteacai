@@ -1,60 +1,59 @@
 import { useState } from 'react';
-import { X, Wallet, CheckCircle2, Scale, CreditCard, Coins } from 'lucide-react';
+import { X, Wallet, CheckCircle2, Scale, CreditCard, Coins, Gift } from 'lucide-react';
 import { createCheckoutSession } from '../lib/stripe';
 import { STRIPE_PRODUCTS } from '../stripe-config';
 import toast from 'react-hot-toast';
 import type { Customer } from '../types';
-import { useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
 
 interface CreditsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  customer: Customer;
+  customer?: Customer | null;
 }
 
 export default function CreditsModal({ isOpen, onClose, customer }: CreditsModalProps) {
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState<'info' | 'purchase'>('info');
-  const navigate = useNavigate();
-
-  if (!isOpen) return null;
+  const [email, setEmail] = useState('');
+  const [selectedProduct, setSelectedProduct] = useState<keyof typeof STRIPE_PRODUCTS>('credits_10');
 
   const handlePurchase = async () => {
+    if (loading) return;
+    
     setLoading(true);
     try {
-      // Check if user is logged in
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      
-      if (sessionError || !session?.user) {
-        toast.error('Você precisa estar logado para comprar créditos');
-        onClose();
-        navigate('/client');
+      if (!customer && !email) {
+        toast.error('Por favor, informe seu email');
         return;
       }
 
-      const product = STRIPE_PRODUCTS.credits;
-      const url = await createCheckoutSession(product.priceId, product.mode);
+      if (!customer && !email.match(/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/)) {
+        toast.error('Por favor, informe um email válido');
+        return;
+      }
+
+      const product = STRIPE_PRODUCTS[selectedProduct];
+      const url = await createCheckoutSession(
+        product.priceId, 
+        product.mode,
+        customer?.email || email,
+        customer?.id
+      );
       
       if (url) {
-        // Close modal before redirect
+        setStep('info');
         onClose();
         window.location.href = url;
       }
     } catch (error: any) {
       console.error('Error purchasing credits:', error);
-      
-      if (error.message.includes('logado') || error.message.includes('sessão')) {
-        onClose();
-        navigate('/client');
-        return;
-      }
-      
       toast.error(error.message || 'Erro ao processar sua compra');
     } finally {
       setLoading(false);
     }
   };
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -65,7 +64,10 @@ export default function CreditsModal({ isOpen, onClose, customer }: CreditsModal
             Sistema de Venda de Créditos
           </h2>
           <button
-            onClick={onClose}
+            onClick={() => {
+              setStep('info');
+              onClose();
+            }}
             className="text-gray-500 hover:text-gray-700 transition-colors"
           >
             <X className="w-6 h-6" />
@@ -170,7 +172,10 @@ export default function CreditsModal({ isOpen, onClose, customer }: CreditsModal
                   Comprar Créditos
                 </button>
                 <button
-                  onClick={onClose}
+                  onClick={() => {
+                    setStep('info');
+                    onClose();
+                  }}
                   className="btn-secondary flex-1"
                 >
                   Fechar
@@ -181,16 +186,50 @@ export default function CreditsModal({ isOpen, onClose, customer }: CreditsModal
             <>
               <div className="space-y-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Valor dos Créditos
+                  <label className="block text-sm font-medium text-gray-700 mb-4">
+                    Escolha o valor dos créditos
                   </label>
-                  <div className="text-2xl font-bold text-purple-600 mb-4">
-                    R$ 10,00
-                  </div>
-                  <div className="text-sm text-green-600">
-                    + R$ 0,50 de cashback (5%)
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {Object.entries(STRIPE_PRODUCTS).map(([key, product]) => (
+                      <button
+                        key={key}
+                        onClick={() => setSelectedProduct(key as keyof typeof STRIPE_PRODUCTS)}
+                        className={`p-4 rounded-xl border-2 transition-all ${
+                          selectedProduct === key
+                            ? 'border-purple-600 bg-purple-50'
+                            : 'border-gray-200 hover:border-purple-200'
+                        }`}
+                      >
+                        <div className="text-xl font-bold text-purple-600 mb-1">
+                          R$ {product.amount.toFixed(2)}
+                        </div>
+                        <div className="text-sm text-green-600 flex items-center gap-1">
+                          <Gift className="w-4 h-4" />
+                          + R$ {(product.amount * 0.10).toFixed(2)} de cashback
+                        </div>
+                      </button>
+                    ))}
                   </div>
                 </div>
+
+                {!customer && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Seu email
+                    </label>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="input-field"
+                      placeholder="exemplo@email.com"
+                      required
+                    />
+                    <p className="mt-2 text-sm text-gray-500">
+                      Informe seu email para receber os créditos
+                    </p>
+                  </div>
+                )}
 
                 <div className="pt-6 border-t border-gray-100">
                   <div className="flex gap-3">

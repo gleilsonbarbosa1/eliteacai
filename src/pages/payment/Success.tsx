@@ -1,44 +1,73 @@
 import { useEffect, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { CheckCircle2, ArrowLeft } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
+import { supabase, ensureValidSession } from '../../lib/supabase';
 import toast from 'react-hot-toast';
 
 export default function PaymentSuccess() {
   const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [amount, setAmount] = useState<number | null>(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const sessionId = searchParams.get('session_id');
-    if (!sessionId) return;
+    if (!sessionId) {
+      navigate('/client');
+      return;
+    }
 
     const checkPaymentStatus = async () => {
       try {
+        // First ensure we have a valid session
+        await ensureValidSession();
+
+        // Get current user after ensuring valid session
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        if (userError || !user) {
+          throw new Error('Erro ao identificar usuário');
+        }
+
+        // Check payment status
         const { data: credit, error } = await supabase
           .from('credits')
           .select('amount, status')
           .eq('stripe_session_id', sessionId)
           .single();
 
-        if (error) throw error;
+        if (error) {
+          if (error.code === 'PGRST116') {
+            throw new Error('Pagamento não encontrado');
+          }
+          throw error;
+        }
 
         if (credit.status === 'approved') {
           setAmount(credit.amount);
           setLoading(false);
+        } else if (credit.status === 'rejected') {
+          throw new Error('Pagamento não aprovado');
         } else {
           // Keep checking every 2 seconds
           setTimeout(checkPaymentStatus, 2000);
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error checking payment status:', error);
-        toast.error('Erro ao verificar status do pagamento');
+        
+        // Clear session and redirect to login only for session-related errors
+        if (error.message?.includes('session')) {
+          await supabase.auth.signOut();
+          navigate('/client');
+          return;
+        }
+        
+        toast.error(error.message || 'Erro ao verificar status do pagamento');
         setLoading(false);
       }
     };
 
     checkPaymentStatus();
-  }, [searchParams]);
+  }, [searchParams, navigate]);
 
   if (loading) {
     return (

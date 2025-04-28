@@ -26,11 +26,18 @@ serve(async (req) => {
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object;
+        const metadata = session.metadata;
         
+        if (!metadata.customer_id) {
+          throw new Error('Customer ID not found in session metadata');
+        }
+
         // Update credit status to approved
         const { error: updateError } = await supabaseClient
           .from('credits')
-          .update({ status: 'approved' })
+          .update({ 
+            status: 'approved',
+          })
           .eq('stripe_session_id', session.id);
 
         if (updateError) {
