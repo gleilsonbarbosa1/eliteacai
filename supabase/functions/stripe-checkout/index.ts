@@ -63,7 +63,7 @@ serve(async (req) => {
       throw new Error('Customer ID is required');
     }
 
-    // Create Stripe session
+    // Create Stripe session with Portuguese localization
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items: [
@@ -76,10 +76,36 @@ serve(async (req) => {
       success_url,
       cancel_url,
       customer_email,
+      locale: 'pt-BR', // Set language to Portuguese
       metadata: {
         customer_id: finalCustomerId,
         customer_email
       },
+      payment_intent_data: {
+        description: 'Créditos Elite Açaí',
+        statement_descriptor: 'ELITE ACAI',
+      },
+      custom_text: {
+        submit: {
+          message: 'Ao concluir sua compra, você concorda com nossos termos e condições.',
+        },
+      },
+      billing_address_collection: 'required',
+      phone_number_collection: {
+        enabled: true,
+      },
+      allow_promotion_codes: false,
+      custom_fields: [
+        {
+          key: 'cpf',
+          label: {
+            type: 'custom',
+            custom: 'CPF',
+          },
+          type: 'text',
+          optional: false,
+        },
+      ],
     });
 
     // Calculate expiration date (90 days from now)
