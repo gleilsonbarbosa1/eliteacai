@@ -15,44 +15,35 @@ export default function AdminLogin() {
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (loading) return;
-    setLoading(true);
 
     try {
-      // First check if there's an existing session
-      const { data: { session: existingSession } } = await supabase.auth.getSession();
-      if (existingSession) {
-        await supabase.auth.signOut();
-      }
+      setLoading(true);
 
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { data: { session }, error: signInError } = await supabase.auth.signInWithPassword({
         email: loginForm.email,
         password: loginForm.password,
       });
 
-      if (error) throw error;
+      if (signInError) throw signInError;
+      if (!session) throw new Error('Erro ao iniciar sessão');
 
       // Check if the user is an admin
       const { data: adminData, error: adminError } = await supabase
         .from('admins')
         .select('*')
-        .eq('id', data.user.id)
+        .eq('id', session.user.id)
         .single();
 
       if (adminError || !adminData) {
-        // If not an admin, sign out and show error
         await supabase.auth.signOut();
         throw new Error('Acesso não autorizado. Apenas administradores podem fazer login.');
       }
 
       toast.success('Login realizado com sucesso!');
-      setLoginForm({ email: '', password: '' });
-      navigate('/admin'); // Redirect to admin dashboard
+      navigate('/admin');
     } catch (error: any) {
       console.error('Error logging in:', error);
       toast.error(error.message || 'Email ou senha inválidos');
-      
-      // Ensure we're signed out on error
-      await supabase.auth.signOut();
     } finally {
       setLoading(false);
     }
@@ -63,12 +54,12 @@ export default function AdminLogin() {
       <div className="glass-card max-w-md w-full p-8">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <LogIn className="w-6 h-6 text-primary-600" />
+            <LogIn className="w-6 h-6 text-purple-600" />
             Login Administrativo
           </h1>
           <Link
             to="/client"
-            className="btn-secondary"
+            className="btn-secondary py-2 px-4"
           >
             Área do Cliente
           </Link>
@@ -83,6 +74,7 @@ export default function AdminLogin() {
               value={loginForm.email}
               onChange={e => setLoginForm({...loginForm, email: e.target.value})}
               className="input-field"
+              placeholder="admin@exemplo.com"
               required
             />
           </div>
@@ -96,13 +88,15 @@ export default function AdminLogin() {
               onChange={e => setLoginForm({...loginForm, password: e.target.value})}
               className="input-field"
               required
+              disabled={loading}
             />
           </div>
           <button
             type="submit"
-            className="btn-primary w-full"
+            className="btn-primary w-full flex items-center justify-center gap-2 text-lg py-4"
             disabled={loading}
           >
+            <LogIn className="w-5 h-5" />
             {loading ? 'Entrando...' : 'Entrar'}
           </button>
         </form>

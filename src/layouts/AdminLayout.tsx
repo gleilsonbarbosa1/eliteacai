@@ -1,9 +1,8 @@
-import { Outlet, useNavigate } from 'react-router-dom';
-import { CreditCard, LogOut, User } from 'lucide-react';
+import { Outlet, useNavigate, Navigate } from 'react-router-dom';
+import { CreditCard, LogOut } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import type { Admin } from '../types';
-import AdminLogin from '../pages/admin/Login';
 import toast from 'react-hot-toast';
 
 export default function AdminLayout() {
@@ -14,95 +13,86 @@ export default function AdminLayout() {
   useEffect(() => {
     checkSession();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' && session?.user) {
-        await fetchAdminData(session.user.id);
-      } else if (event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED') {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') {
         setAdminData(null);
+        setLoading(false);
+        navigate('/admin/login');
       }
     });
 
     return () => {
-      subscription.unsubscribe();
+      subscription?.unsubscribe();
     };
-  }, []);
+  }, [navigate]);
 
   const checkSession = async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        await fetchAdminData(session.user.id);
+      setLoading(true);
+
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError) throw sessionError;
+      if (!session?.user) throw new Error('Sessão não encontrada');
+
+      const { data: adminData, error: adminError } = await supabase
+        .from('admins')
+        .select('*')
+        .eq('id', session.user.id)
+        .single();
+
+      if (adminError || !adminData) {
+        throw new Error('Acesso não autorizado');
       }
-    } catch (error) {
+
+      setAdminData(adminData as Admin);
+    } catch (error: any) {
       console.error('Error checking session:', error);
+      await supabase.auth.signOut();
+      toast.error('Sessão expirada. Por favor, faça login novamente.');
+      navigate('/admin/login');
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchAdminData = async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('admins')
-        .select('*')
-        .eq('id', userId)
-        .single();
-
-      if (error) throw error;
-
-      if (data) {
-        setAdminData(data as Admin);
-      } else {
-        // If no admin data found, sign out
-        await handleAdminLogout();
-      }
-    } catch (error) {
-      console.error('Error fetching admin data:', error);
-      await handleAdminLogout();
-    }
-  };
-
   const handleAdminLogout = async () => {
     try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-      
+      await supabase.auth.signOut();
       setAdminData(null);
       navigate('/admin/login');
-      toast.success('Logout realizado com sucesso!');
-    } catch (error) {
+      toast.success('Sessão encerrada com sucesso');
+    } catch (error: any) {
       console.error('Error logging out:', error);
       toast.error('Erro ao fazer logout');
     }
   };
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-    </div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+      </div>
+    );
   }
 
   if (!adminData) {
-    return <AdminLogin />;
+    return <Navigate to="/admin/login" replace />;
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-50 to-secondary-50">
-      <header className="bg-white bg-opacity-90 backdrop-blur-sm shadow-sm sticky top-0 z-50">
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-white">
+      <header className="bg-white/90 backdrop-blur-sm shadow-sm sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4">
           <div className="flex justify-between items-center">
             <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-              <CreditCard className="w-6 h-6 text-primary-600" />
+              <CreditCard className="w-6 h-6 text-purple-600" />
               Área Administrativa
             </h1>
             <div className="flex items-center gap-4">
-              <span className="text-sm flex items-center gap-2">
-                <User className="w-4 h-4" />
-                {adminData.email}
-              </span>
               <button
                 onClick={handleAdminLogout}
-                className="btn-secondary flex items-center gap-2"
+                className="btn-secondary py-2 px-4 flex items-center gap-2"
               >
                 <LogOut className="w-4 h-4" />
                 Sair

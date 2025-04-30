@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Phone, Wallet, History, CreditCard, Gift, CheckCircle2, Clock, XCircle, ArrowRight, Sparkles, ShoppingBag, Receipt, ChevronDown, ChevronUp, User, Lock, LogOut, MapPin, Calendar, Mail, AlertCircle } from 'lucide-react';
+import { Phone, Wallet, History, CreditCard, Gift, CheckCircle2, Clock, XCircle, ArrowRight, Sparkles, ShoppingBag, Receipt, ChevronDown, ChevronUp, User, Lock, LogOut, MapPin, Calendar, Mail, AlertCircle, LogIn } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type { Customer, Transaction } from '../../types';
 import { supabase } from '../../lib/supabase';
@@ -12,7 +12,7 @@ import CreditsModal from '../../components/CreditsModal';
 const STORE_CASHBACK_RATE = 0.05; // 5% cashback for in-store purchases
 const CREDIT_CASHBACK_RATE = 0.10; // 10% cashback for credit purchases
 
-export default function ClientDashboard() {
+function ClientDashboard() {
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
@@ -114,7 +114,6 @@ export default function ClientDashboard() {
       }
 
       if (isLogin) {
-        // Get customer ID from verification function
         const { data: customerId, error: verifyError } = await supabase
           .rpc('verify_customer_password', {
             p_email: email.toLowerCase(),
@@ -130,7 +129,6 @@ export default function ClientDashboard() {
           throw new Error('Email ou senha incorretos');
         }
 
-        // Get customer data
         const { data: customerData, error: customerError } = await supabase
           .from('customers')
           .select('*')
@@ -210,7 +208,6 @@ export default function ClientDashboard() {
         toast.success('Cadastro realizado com sucesso!');
       }
 
-      // Clear form
       setEmail('');
       setPhone('');
       setName('');
@@ -466,208 +463,213 @@ export default function ClientDashboard() {
     }
   };
 
-  if (!customer) {
-    return (
-      <div className="min-h-[80vh] flex items-center justify-center p-4">
-        <div className="max-w-md w-full">
-          <div className="glass-card p-8">
-            <div className="text-center mb-8">
-              <div className="w-20 h-20 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                <Sparkles className="w-10 h-10 text-purple-600" />
-              </div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-3">
-                Ganhe 5% de Cashback!
-              </h1>
-              <p className="text-gray-600 text-lg">
-                Compre hoje e ganhe 5% do valor de volta para suas próximas compras!
-              </p>
-            </div>
-
-            <div className="flex justify-center gap-4 mb-8">
-              <button
-                onClick={() => setIsLogin(false)}
-                className={`px-4 py-2 rounded-lg transition-all ${
-                  !isLogin
-                    ? 'bg-purple-100 text-purple-700 font-medium'
-                    : 'text-gray-600 hover:text-purple-600'
-                }`}
-              >
-                Cadastrar
-              </button>
-              <button
-                onClick={() => setIsLogin(true)}
-                className={`px-4 py-2 rounded-lg transition-all ${
-                  isLogin
-                    ? 'bg-purple-100 text-purple-700 font-medium'
-                    : 'text-gray-600 hover:text-purple-600'
-                }`}
-              >
-                Entrar
-              </button>
-            </div>
-
-            <form onSubmit={handleCustomerSubmit} className="space-y-6">
-              {!isLogin && (
-                <>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Seu nome completo
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        className="input-field text-lg pl-11"
-                        placeholder="João da Silva"
-                        required={!isLogin}
-                      />
-                      <User className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Seu número do WhatsApp
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="tel"
-                        value={phone}
-                        onChange={handlePhoneNumberChange}
-                        placeholder="(99) 99999-9999"
-                        className="input-field text-lg pl-11"
-                        maxLength={15}
-                        required={!isLogin}
-                      />
-                      <Phone className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
-                    </div>
-                    <p className="mt-2 text-sm text-gray-500">
-                      Digite seu número com DDD, exemplo: (85) XXXXX-XXXX
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Data de Nascimento
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="date"
-                        value={dateOfBirth}
-                        onChange={(e) => setDateOfBirth(e.target.value)}
-                        className="input-field text-lg pl-11"
-                        required={!isLogin}
-                      />
-                      <Calendar className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
-                    </div>
-                  </div>
-                </>
-              )}
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Seu email
-                </label>
-                <div className="relative">
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="input-field text-lg pl-11"
-                    placeholder="exemplo@email.com"
-                    required
-                  />
-                  <Mail className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
+  return (
+    <div className="max-w-lg mx-auto space-y-6">
+      {!customer ? (
+        <div className="min-h-[80vh] flex items-center justify-center p-4">
+          <div className="max-w-md w-full">
+            <div className="glass-card p-8">
+              <div className="text-center mb-8">
+                <div className="w-20 h-20 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <Sparkles className="w-10 h-10 text-purple-600" />
                 </div>
+                <h1 className="text-3xl font-bold text-gray-900 mb-3">
+                  Ganhe até 10% de Cashback!
+                </h1>
+                <p className="text-gray-600 text-lg">
+                  Compre créditos hoje e ganhe 10% de cashback! Nas compras na loja, ganhe 5% de volta!
+                </p>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Senha
-                </label>
-                <div className="relative">
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="input-field text-lg pl-11"
-                    placeholder="••••••"
-                    required
-                    minLength={6}
-                  />
-                  <Lock className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
-                </div>
+              <div className="flex justify-center gap-4 mb-8">
+                <button
+                  onClick={() => setIsLogin(false)}
+                  className={`px-4 py-2 rounded-lg transition-all ${
+                    !isLogin
+                      ? 'bg-purple-100 text-purple-700 font-medium'
+                      : 'text-gray-600 hover:text-purple-600'
+                  }`}
+                >
+                  Cadastrar
+                </button>
+                <button
+                  onClick={() => setIsLogin(true)}
+                  className={`px-4 py-2 rounded-lg transition-all ${
+                    isLogin
+                      ? 'bg-purple-100 text-purple-700 font-medium'
+                      : 'text-gray-600 hover:text-purple-600'
+                  }`}
+                >
+                  Entrar
+                </button>
+              </div>
+
+              <form onSubmit={handleCustomerSubmit} className="space-y-6">
                 {!isLogin && (
-                  <p className="mt-2 text-sm text-gray-500">
-                    Mínimo de 6 caracteres
-                  </p>
-                )}
-              </div>
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Seu nome completo
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={name}
+                          onChange={(e) => setName(e.target.value)}
+                          className="input-field text-lg pl-11"
+                          placeholder="João da Silva"
+                          required={!isLogin}
+                        />
+                        <User className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                      </div>
+                    </div>
 
-              {!isLogin && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Seu número do WhatsApp
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="tel"
+                          value={phone}
+                          onChange={handlePhoneNumberChange}
+                          placeholder="(99) 99999-9999"
+                          className="input-field text-lg pl-11"
+                          maxLength={15}
+                          required={!isLogin}
+                        />
+                        <Phone className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                      </div>
+                      <p className="mt-2 text-sm text-gray-500">
+                        Digite seu número com DDD, exemplo: (85) XXXXX-XXXX
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Data de Nascimento
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="date"
+                          value={dateOfBirth}
+                          onChange={(e) => setDateOfBirth(e.target.value)}
+                          className="input-field text-lg pl-11"
+                          required={!isLogin}
+                        />
+                        <Calendar className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                      </div>
+                    </div>
+                  </>
+                )}
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Confirme sua senha
+                    Seu email
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="input-field text-lg pl-11"
+                      placeholder="exemplo@email.com"
+                      required
+                    />
+                    <Mail className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Senha
                   </label>
                   <div className="relative">
                     <input
                       type="password"
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
                       className="input-field text-lg pl-11"
                       placeholder="••••••"
-                      required={!isLogin}
+                      required
+                      minLength={6}
                     />
                     <Lock className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
                   </div>
+                  {!isLogin && (
+                    <p className="mt-2 text-sm text-gray-500">
+                      Mínimo de 6 caracteres
+                    </p>
+                  )}
                 </div>
-              )}
 
-              {isLogin && (
-                <div className="text-right">
-                  <Link
-                    to="/reset-password"
-                    className="text-sm text-purple-600 hover:text-purple-700 transition-colors"
-                  >
-                    Esqueceu sua senha?
-                  </Link>
-                </div>
-              )}
+                {!isLogin && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Confirme sua senha
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="password"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        className="input-field text-lg pl-11"
+                        placeholder="••••••"
+                        required={!isLogin}
+                      />
+                      <Lock className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                    </div>
+                  </div>
+                )}
 
-              {!isLogin && (
-                <div className="text-sm text-gray-600">
-                  Ao se cadastrar, você concorda com o{' '}
-                  <Link
-                    to="/client/terms"
-                    className="text-purple-600 hover:text-purple-700 font-medium"
-                  >
-                    Regulamento do Programa
-                  </Link>
-                </div>
-              )}
+                {isLogin && (
+                  <div className="text-right">
+                    <Link
+                      to="/reset-password"
+                      className="text-sm text-purple-600 hover:text-purple-700 transition-colors"
+                    >
+                      Esqueceu sua senha?
+                    </Link>
+                  </div>
+                )}
 
-              <button
-                type="submit"
-                className="btn-primary w-full text-lg"
-                disabled={loading}
-              >
-                {loading ? 'Processando...' : isLogin ? 'Entrar' : 'Cadastrar'}
-              </button>
-            </form>
+                {!isLogin && (
+                  <div className="text-sm text-gray-600">
+                    Ao se cadastrar, você concorda com o{' '}
+                    <Link
+                      to="/client/terms"
+                      className="text-purple-600 hover:text-purple-700 font-medium"
+                    >
+                      Regulamento do Programa
+                    </Link>
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  className="btn-primary w-full flex items-center justify-center gap-2 text-lg py-4"
+                  disabled={loading}
+                >
+                  <LogIn className="w-5 h-5" />
+                  {loading ? 'Processando...' : isLogin ? 'Entrar' : 'Cadastrar'}
+                </button>
+              </form>
+            </div>
           </div>
         </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="max-w-lg mx-auto space-y-6">
-      <div className="glass-card p-8">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <div className="flex items-center justify-between gap-4 mb-2">
-              <h2 className="text-2xl font-bold">Olá, {customer.name}!</h2>
+      ) : (
+        <>
+          <div className="glass-card p-8">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-2xl font-bold mb-2">
+                  Olá, {customer.name || 'Cliente'}!
+                </h2>
+                <p className="text-gray-600 flex items-center gap-2">
+                  <Phone className="w-4 h-4" />
+                  {customer.phone}
+                </p>
+              </div>
               <button
                 onClick={handleLogout}
                 className="btn-secondary py-2 px-4 flex items-center gap-2 text-sm"
@@ -676,274 +678,267 @@ export default function ClientDashboard() {
                 Sair
               </button>
             </div>
-            <p className="text-gray-600 flex items-center gap-2">
-              <Phone className="w-4 h-4" />
-              {customer.phone}
-            </p>
-          </div>
-          <div className="text-right">
-            <div className="text-sm text-gray-600 mb-1">Seu saldo disponível</div>
-            <div className="text-3xl font-bold text-purple-600">
-              R$ {availableBalance.toFixed(2)}
-            </div>
-            {nextExpiringAmount && (
-              <div className="mt-2 text-sm flex items-center gap-1 text-orange-600">
-                <AlertCircle className="w-4 h-4" />
-                <span>
-                  R$ {nextExpiringAmount.amount.toFixed(2)} - {formatExpirationDate(nextExpiringAmount.date)}
-                </span>
-              </div>
-            )}
-          </div>
-        </div>
 
-        <div className="space-y-6">
-          <div className="border-t border-b border-purple-100 -mx-8 px-8 py-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-medium text-gray-900">Registrar Nova Compra</h3>
-              <button
-                onClick={() => setShowCreditsModal(true)}
-                className="btn-secondary py-2 px-4 flex items-center gap-2 text-sm"
-              >
-                <Wallet className="w-4 h-4" />
-                Comprar Créditos
-              </button>
-            </div>
-            <form onSubmit={addTransaction} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Valor da Compra
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={transactionAmount}
-                  onChange={e => setTransactionAmount(e.target.value)}
-                  className="input-field text-lg"
-                  placeholder="0,00"
-                  required
-                />
-                {transactionAmount && parseFloat(transactionAmount) > 0 && (
-                  <p className="mt-2 text-sm text-purple-600 font-medium flex items-center gap-1">
-                    <ArrowRight className="w-4 h-4" />
-                    Você receberá R$ {(parseFloat(transactionAmount) * STORE_CASHBACK_RATE).toFixed(2)} em cashback
-                  </p>
-                )}
-              </div>
-
-              <button
-                type="submit"
-                className="btn-primary w-full text-lg flex items-center justify-center gap-2"
-                disabled={loading || isSubmitting}
-              >
-                <ShoppingBag className="w-5 h-5" />
-                {loading ? 'Processando...' : 'Registrar Compra'}
-              </button>
-            </form>
-          </div>
-
-          {availableBalance > 0 && (
-            <div className="text-center">
-              {showRedemptionForm ? (
-                <div className="glass-card p-6 bg-purple-50">
-                  <h3 className="font-medium text-gray-900 mb-4 flex items-center justify-center gap-2">
-                    <Gift className="w-5 h-5 text-purple-600" />
-                    Resgatar Cashback
-                  </h3>
-                  <form onSubmit={handleRedeemCashback} className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Valor para Resgate
-                      </label>
-                      
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0.01"
-                        max={availableBalance}
-                        value={redemptionAmount}
-                        onChange={(e) => {
-                          const value = parseFloat(e.target.value);
-                          if (!isNaN(value)) {
-                            setRedemptionAmount(e.target.value);
-                          }
-                        }}
-                        className="input-field text-lg"
-                        placeholder={`0,00 (máx: ${availableBalance.toFixed(2)})`}
-                        required
-                      />
-                      <p className="mt-2 text-sm text-gray-500">
-                        Saldo disponível: R$ {availableBalance.toFixed(2)}
-                      </p>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        type="submit"
-                        className="btn-primary flex-1 text-lg flex items-center justify-center gap-2"
-                        disabled={loading}
-                      >
-                        <Gift className="w-5 h-5" />
-                        {loading ? 'Processando...' : 'Confirmar Resgate'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowRedemptionForm(false);
-                          setRedemptionAmount('');
-                        }}
-                        className="btn-secondary flex-1 text-lg"
-                        disabled={loading}
-                      >
-                        Cancelar
-                      </button>
-                    </div>
-                  </form>
+            <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl p-6 text-white mb-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Wallet className="w-5 h-5" />
+                  <span className="font-medium">Seu saldo disponível</span>
                 </div>
-              ) : (
                 <button
-                  onClick={() => setShowRedemptionForm(true)}
-                  type="button"
-                  className="btn-secondary text-lg inline-flex items-center gap-2"
-                  disabled={loading}
+                  onClick={() => setShowCreditsModal(true)}
+                  className="bg-white/20 hover:bg-white/30 text-white rounded-xl py-2 px-4 flex items-center gap-2 text-sm transition-colors"
                 >
-                  <Gift className="w-5 h-5" />
-                  Resgatar Cashback
+                  <Gift className="w-4 h-4" />
+                  Comprar Créditos
                 </button>
+              </div>
+              <div className="text-4xl font-bold mb-2">
+                R$ {availableBalance.toFixed(2)}
+              </div>
+              {nextExpiringAmount && (
+                <div className="text-white/80 text-sm flex items-center gap-1">
+                  <AlertCircle className="w-4 h-4" />
+                  <span>
+                    R$ {nextExpiringAmount.amount.toFixed(2)} - {formatExpirationDate(nextExpiringAmount.date)}
+                  </span>
+                </div>
               )}
             </div>
-          )}
-        </div>
-      </div>
 
-      <div className="glass-card p-8">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="card-header !mb-0">
-            <History className="w-6 h-6 text-purple-600" />
-            Minhas Transações
-          </h2>
-          <div className="flex rounded-lg border border-purple-100 p-1">
-            
-            <button
-              onClick={() => setActiveTab('purchases')}
-              className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
-                activeTab === 'purchases'
-                  ? 'bg-purple-100 text-purple-700'
-                  : 'text-gray-600 hover:text-purple-600'
-              }`}
-            >
-              Compras
-            </button>
-            <button
-              onClick={() => setActiveTab('redemptions')}
-              className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
-                activeTab === 'redemptions'
-                  ? 'bg-purple-100 text-purple-700'
-                  : 'text-gray-600 hover:text-purple-600'
-              }`}
-            >
-              Resgates
-            </button>
-          </div>
-        </div>
-
-        <div className="space-y-4">
-          {transactions
-            .filter(t => activeTab === 'purchases' ? t.type === 'purchase' : t.type === 'redemption')
-            .map(transaction => (
-              <div key={transaction.id} className="transaction-item">
-                <button 
-                  onClick={() => toggleTransactionDetails(transaction.id)}
-                  className="w-full text-left"
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="font-medium flex items-center gap-2">
-                        {transaction.type === 'purchase' ? (
-                          <CreditCard className="w-4 h-4 text-purple-600" />
-                        ) : (
-                          <Gift className="w-4 h-4 text-purple-600" />
-                        )}
-                        {transaction.type === 'purchase' ? 'Compra' : 'Resgate'}
-                      </div>
-                      <div className="text-sm text-gray-600">
-                        {formatDateTime(transaction.created_at)}
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-medium">
-                        R$ {transaction.amount.toFixed(2)}
-                      </div>
-                      {transaction.type === 'purchase' && (
-                        <div className="text-sm text-purple-600">
-                          + R$ {transaction.cashback_amount.toFixed(2)} cashback
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between mt-2">
-                    <div className="flex items-center gap-2">
-                      {transaction.status === 'approved' ? (
-                        <>
-                          <CheckCircle2 className="w-4 h-4 text-green-500" />
-                          <span className="text-sm text-green-600">Aprovado</span>
-                        </>
-                      ) : transaction.status === 'pending' ? (
-                        <>
-                          <Clock className="w-4 h-4 text-orange-500" />
-                          <span className="text-sm text-orange-600">Pendente</span>
-                        </>
-                      ) : (
-                        <>
-                          <XCircle className="w-4 h-4 text-red-500" />
-                          <span className="text-sm text-red-600">Rejeitado</span>
-                        </>
-                      )}
-                    </div>
-                    {expandedTransactionId === transaction.id ? (
-                      <ChevronUp className="w-4 h-4 text-gray-400" />
-                    ) : (
-                      <ChevronDown className="w-4 h-4 text-gray-400" />
+            <div className="space-y-6">
+              <div className="border-t border-b border-purple-100 -mx-8 px-8 py-6">
+                <h3 className="font-medium text-gray-900 mb-4">Registrar Nova Compra</h3>
+                <form onSubmit={addTransaction} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Valor da Compra
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={transactionAmount}
+                      onChange={e => setTransactionAmount(e.target.value)}
+                      className="input-field text-lg"
+                      placeholder="0,00"
+                      required
+                    />
+                    {transactionAmount && parseFloat(transactionAmount) > 0 && (
+                      <p className="mt-2 text-sm text-purple-600 font-medium flex items-center gap-1">
+                        <ArrowRight className="w-4 h-4" />
+                        Você receberá R$ {(parseFloat(transactionAmount) * STORE_CASHBACK_RATE).toFixed(2)} em cashback
+                      </p>
                     )}
                   </div>
-                </button>
 
-                {expandedTransactionId === transaction.id && (
-                  <div className="mt-4 pt-4 border-t border-gray-100">
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-gray-600">ID da Transação</span>
-                        <span className="font-mono text-gray-900">{transaction.id}</span>
-                      </div>
-                      {transaction.receipt_url && (
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-gray-600">Comprovante</span>
-                          <a
-                            href={transaction.receipt_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-purple-600 hover:text-purple-700 transition-colors flex items-center gap-1"
-                          >
-                            <Receipt className="w-4 h-4" />
-                            Ver comprovante
-                          </a>
-                        </div>
-                      )}
-                      {transaction.type === 'purchase' && transaction.expires_at && (
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-gray-600">Cashback expira em</span>
-                          <span className="text-gray-900">
-                            {new Date(transaction.expires_at).toLocaleDateString('pt-BR')}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
+                  <button
+                    type="submit"
+                    className="btn-primary w-full text-lg flex items-center justify-center gap-2"
+                    disabled={loading || isSubmitting}
+                  >
+                    <ShoppingBag className="w-5 h-5" />
+                    {loading ? 'Processando...' : 'Registrar Compra'}
+                  </button>
+                </form>
               </div>
-            ))}
-        </div>
-      </div>
+
+              {availableBalance > 0 && (
+                <div className="text-center">
+                  {showRedemptionForm ? (
+                    <div className="glass-card p-6 bg-purple-50">
+                      <h3 className="font-medium text-gray-900 mb-4 flex items-center justify-center gap-2">
+                        <Gift className="w-5 h-5 text-purple-600" />
+                        Resgatar Cashback
+                      </h3>
+                      <form onSubmit={handleRedeemCashback} className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Valor para Resgate
+                          </label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0.01"
+                            max={availableBalance}
+                            value={redemptionAmount}
+                            onChange={(e) => setRedemptionAmount(e.target.value)}
+                            className="input-field text-lg"
+                            placeholder={`0,00 (máx: ${availableBalance.toFixed(2)})`}
+                            required
+                          />
+                          <p className="mt-2 text-sm text-gray-500">
+                            Saldo disponível: R$ {availableBalance.toFixed(2)}
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            type="submit"
+                            className="btn-primary flex-1 text-lg flex items-center justify-center gap-2"
+                            disabled={loading}
+                          >
+                            <Gift className="w-5 h-5" />
+                            {loading ? 'Processando...' : 'Confirmar Resgate'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowRedemptionForm(false);
+                              setRedemptionAmount('');
+                            }}
+                            className="btn-secondary flex-1 text-lg"
+                            disabled={loading}
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setShowRedemptionForm(true)}
+                      type="button"
+                      className="btn-secondary text-lg inline-flex items-center gap-2"
+                      disabled={loading}
+                    >
+                      <Gift className="w-5 h-5" />
+                      Resgatar Cashback
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="glass-card p-8">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="card-header !mb-0">
+                <History className="w-6 h-6 text-purple-600" />
+                Minhas Transações
+              </h2>
+              <div className="flex rounded-lg border border-purple-100 p-1">
+                <button
+                  onClick={() => setActiveTab('purchases')}
+                  className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
+                    activeTab === 'purchases'
+                      ? 'bg-purple-100 text-purple-700'
+                      : 'text-gray-600 hover:text-purple-600'
+                  }`}
+                >
+                  Compras
+                </button>
+                <button
+                  onClick={() => setActiveTab('redemptions')}
+                  className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
+                    activeTab === 'redemptions'
+                      ? 'bg-purple-100 text-purple-700'
+                      : 'text-gray-600 hover:text-purple-600'
+                  }`}
+                >
+                  Resgates
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              {transactions
+                .filter(t => activeTab === 'purchases' ? t.type === 'purchase' : t.type === 'redemption')
+                .map(transaction => (
+                  <div key={transaction.id} className="transaction-item">
+                    <button 
+                      onClick={() => toggleTransactionDetails(transaction.id)}
+                      className="w-full text-left"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="font-medium flex items-center gap-2">
+                            {transaction.type === 'purchase' ? (
+                              <CreditCard className="w-4 h-4 text-purple-600" />
+                            ) : (
+                              <Gift className="w-4 h-4 text-purple-600" />
+                            )}
+                            {transaction.type === 'purchase' ? 'Compra' : 'Resgate'}
+                          </div>
+                          <div className="text-sm text-gray-600">
+                            {formatDateTime(transaction.created_at)}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-medium">
+                            R$ {transaction.amount.toFixed(2)}
+                          </div>
+                          {transaction.type === 'purchase' && (
+                            <div className="text-sm text-purple-600">
+                              + R$ {transaction.cashback_amount.toFixed(2)} cashback
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between mt-2">
+                        <div className="flex items-center gap-2">
+                          {transaction.status === 'approved' ? (
+                            <>
+                              <CheckCircle2 className="w-4 h-4 text-green-500" />
+                              <span className="text-sm text-green-600">Aprovado</span>
+                            </>
+                          ) : transaction.status === 'pending' ? (
+                            <>
+                              <Clock className="w-4 h-4 text-orange-500" />
+                              <span className="text-sm text-orange-600">Pendente</span>
+                            </>
+                          ) : (
+                            <>
+                              <XCircle className="w-4 h-4 text-red-500" />
+                              <span className="text-sm text-red-600">Rejeitado</span>
+                            </>
+                          )}
+                        </div>
+                        {expandedTransactionId === transaction.id ? (
+                          <ChevronUp className="w-4 h-4 text-gray-400" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4 text-gray-400" />
+                        )}
+                      </div>
+                    </button>
+
+                    {expandedTransactionId === transaction.id && (
+                      <div className="mt-4 pt-4 border-t border-gray-100">
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-gray-600">ID da Transação</span>
+                            <span className="font-mono text-gray-900">{transaction.id}</span>
+                          </div>
+                          {transaction.receipt_url && (
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="text-gray-600">Comprovante</span>
+                              <a
+                                href={transaction.receipt_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-purple-600 hover:text-purple-700 transition-colors flex items-center gap-1"
+                              >
+                                <Receipt className="w-4 h-4" />
+                                Ver comprovante
+                              </a>
+                            </div>
+                          )}
+                          {transaction.type === 'purchase' && transaction.expires_at && (
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="text-gray-600">Cashback expira em</span>
+                              <span className="text-gray-900">
+                                {new Date(transaction.expires_at).toLocaleDateString('pt-BR')}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+            </div>
+          </div>
+        </>
+      )}
 
       {showCreditsModal && (
         <CreditsModal
@@ -955,3 +950,5 @@ export default function ClientDashboard() {
     </div>
   );
 }
+
+export default ClientDashboard;

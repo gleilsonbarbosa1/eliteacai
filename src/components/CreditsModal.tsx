@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { X, Wallet, CheckCircle2, Scale, CreditCard, Coins, Gift } from 'lucide-react';
-import { createCheckoutSession } from '../lib/stripe';
-import { STRIPE_PRODUCTS } from '../stripe-config';
+import { X, Wallet, CheckCircle2, Scale, CreditCard, Coins, Gift, Copy, QrCode } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { Customer } from '../types';
+import { createPixPayment } from '../lib/pix';
+import PaymentButton from './PaymentButton';
 
 interface CreditsModalProps {
   isOpen: boolean;
@@ -13,9 +13,16 @@ interface CreditsModalProps {
 
 export default function CreditsModal({ isOpen, onClose, customer }: CreditsModalProps) {
   const [loading, setLoading] = useState(false);
-  const [step, setStep] = useState<'info' | 'purchase'>('info');
+  const [step, setStep] = useState<'info' | 'purchase' | 'pix'>('info');
   const [email, setEmail] = useState('');
-  const [selectedProduct, setSelectedProduct] = useState<keyof typeof STRIPE_PRODUCTS>('credits_10');
+  const [selectedAmount, setSelectedAmount] = useState<number>(10);
+  const [paymentMethod, setPaymentMethod] = useState<'pix' | 'card'>('pix');
+  const [pixData, setPixData] = useState<{
+    creditId: string;
+    pixCopiaECola: string;
+    qrCodeUrl: string;
+    transactionId: string;
+  } | null>(null);
 
   const handlePurchase = async () => {
     if (loading) return;
@@ -32,18 +39,15 @@ export default function CreditsModal({ isOpen, onClose, customer }: CreditsModal
         return;
       }
 
-      const product = STRIPE_PRODUCTS[selectedProduct];
-      const url = await createCheckoutSession(
-        product.priceId, 
-        product.mode,
-        customer?.email || email,
-        customer?.id
-      );
-      
-      if (url) {
-        setStep('info');
-        onClose();
-        window.location.href = url;
+      if (paymentMethod === 'pix') {
+        const data = await createPixPayment(
+          selectedAmount,
+          customer?.email || email,
+          customer?.id
+        );
+        
+        setPixData(data);
+        setStep('pix');
       }
     } catch (error: any) {
       console.error('Error purchasing credits:', error);
@@ -53,11 +57,23 @@ export default function CreditsModal({ isOpen, onClose, customer }: CreditsModal
     }
   };
 
+  const copyPixCode = async () => {
+    if (!pixData?.pixCopiaECola) return;
+    
+    try {
+      await navigator.clipboard.writeText(pixData.pixCopiaECola);
+      toast.success('Código PIX copiado!');
+    } catch (err) {
+      console.error('Failed to copy:', err);
+      toast.error('Erro ao copiar código PIX');
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+      <div className="bg-white rounded-3xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
         <div className="p-6 border-b border-gray-100 flex items-center justify-between">
           <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
             <Wallet className="w-6 h-6 text-purple-600" />
@@ -94,7 +110,7 @@ export default function CreditsModal({ isOpen, onClose, customer }: CreditsModal
                     </li>
                     <li className="flex items-start gap-2">
                       <span className="text-purple-600 mt-1">•</span>
-                      Pague com Cartão de Crédito.
+                      Pague com PIX ou cartão.
                     </li>
                     <li className="flex items-start gap-2">
                       <span className="text-purple-600 mt-1">•</span>
@@ -157,7 +173,11 @@ export default function CreditsModal({ isOpen, onClose, customer }: CreditsModal
                   <ul className="space-y-2 text-gray-600">
                     <li className="flex items-start gap-2">
                       <span className="text-purple-600 mt-1">•</span>
-                      Cartão de Crédito
+                      PIX (aprovação imediata)
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-purple-600 mt-1">•</span>
+                      Cartão de crédito
                     </li>
                   </ul>
                 </section>
@@ -182,7 +202,7 @@ export default function CreditsModal({ isOpen, onClose, customer }: CreditsModal
                 </button>
               </div>
             </>
-          ) : (
+          ) : step === 'purchase' ? (
             <>
               <div className="space-y-6">
                 <div>
@@ -190,22 +210,22 @@ export default function CreditsModal({ isOpen, onClose, customer }: CreditsModal
                     Escolha o valor dos créditos
                   </label>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {Object.entries(STRIPE_PRODUCTS).map(([key, product]) => (
+                    {[10, 20, 30, 40, 50].map((amount) => (
                       <button
-                        key={key}
-                        onClick={() => setSelectedProduct(key as keyof typeof STRIPE_PRODUCTS)}
+                        key={amount}
+                        onClick={() => setSelectedAmount(amount)}
                         className={`p-4 rounded-xl border-2 transition-all ${
-                          selectedProduct === key
+                          selectedAmount === amount
                             ? 'border-purple-600 bg-purple-50'
                             : 'border-gray-200 hover:border-purple-200'
                         }`}
                       >
                         <div className="text-xl font-bold text-purple-600 mb-1">
-                          R$ {product.amount.toFixed(2)}
+                          R$ {amount.toFixed(2)}
                         </div>
                         <div className="text-sm text-green-600 flex items-center gap-1">
                           <Gift className="w-4 h-4" />
-                          + R$ {(product.amount * 0.10).toFixed(2)} de cashback
+                          + R$ {(amount * 0.10).toFixed(2)} de cashback
                         </div>
                       </button>
                     ))}
@@ -231,6 +251,40 @@ export default function CreditsModal({ isOpen, onClose, customer }: CreditsModal
                   </div>
                 )}
 
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-4">
+                    Escolha a forma de pagamento
+                  </label>
+                  <div className="grid grid-cols-2 gap-4">
+                    <button
+                      onClick={() => setPaymentMethod('pix')}
+                      className={`p-4 rounded-xl border-2 transition-all ${
+                        paymentMethod === 'pix'
+                          ? 'border-purple-600 bg-purple-50'
+                          : 'border-gray-200 hover:border-purple-200'
+                      }`}
+                    >
+                      <div className="flex items-center justify-center gap-2 text-lg font-medium">
+                        <QrCode className="w-5 h-5" />
+                        PIX
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => setPaymentMethod('card')}
+                      className={`p-4 rounded-xl border-2 transition-all ${
+                        paymentMethod === 'card'
+                          ? 'border-purple-600 bg-purple-50'
+                          : 'border-gray-200 hover:border-purple-200'
+                      }`}
+                    >
+                      <div className="flex items-center justify-center gap-2 text-lg font-medium">
+                        <CreditCard className="w-5 h-5" />
+                        Cartão
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
                 <div className="pt-6 border-t border-gray-100">
                   <div className="flex gap-3">
                     <button
@@ -239,24 +293,89 @@ export default function CreditsModal({ isOpen, onClose, customer }: CreditsModal
                     >
                       Voltar
                     </button>
-                    <button
-                      onClick={handlePurchase}
-                      disabled={loading}
-                      className="btn-primary flex-1 flex items-center justify-center gap-2"
-                    >
-                      {loading ? (
-                        'Processando...'
-                      ) : (
-                        <>
-                          <CreditCard className="w-5 h-5" />
-                          Pagar com Cartão
-                        </>
-                      )}
-                    </button>
+                    {paymentMethod === 'pix' ? (
+                      <button
+                        onClick={handlePurchase}
+                        disabled={loading}
+                        className="btn-primary flex-1 flex items-center justify-center gap-2"
+                      >
+                        {loading ? (
+                          'Processando...'
+                        ) : (
+                          <>
+                            <QrCode className="w-5 h-5" />
+                            Pagar com PIX
+                          </>
+                        )}
+                      </button>
+                    ) : (
+                      <PaymentButton
+                        productId={`credits_${selectedAmount}` as keyof typeof STRIPE_PRODUCTS}
+                        className="btn-primary flex-1 flex items-center justify-center gap-2"
+                      >
+                        <CreditCard className="w-5 h-5" />
+                        Pagar com Cartão
+                      </PaymentButton>
+                    )}
                   </div>
                 </div>
               </div>
             </>
+          ) : (
+            <div className="space-y-6">
+              <div className="text-center">
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                  Pagamento PIX
+                </h3>
+                <p className="text-gray-600">
+                  Escaneie o QR Code ou copie o código PIX abaixo para realizar o pagamento
+                </p>
+              </div>
+
+              {pixData && (
+                <>
+                  <div className="flex justify-center">
+                    <img
+                      src={pixData.qrCodeUrl}
+                      alt="QR Code PIX"
+                      className="w-64 h-64"
+                    />
+                  </div>
+
+                  <div className="bg-gray-50 p-4 rounded-xl">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="text-sm text-gray-500">
+                        Código PIX Copia e Cola
+                      </div>
+                      <button
+                        onClick={copyPixCode}
+                        className="text-purple-600 hover:text-purple-700 transition-colors"
+                      >
+                        <Copy className="w-5 h-5" />
+                      </button>
+                    </div>
+                    <div className="mt-2 text-xs font-mono break-all">
+                      {pixData.pixCopiaECola}
+                    </div>
+                  </div>
+
+                  <div className="text-sm text-gray-500">
+                    <p>Após o pagamento, seus créditos serão adicionados automaticamente à sua conta.</p>
+                    <p className="mt-2">ID da transação: {pixData.transactionId}</p>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      setStep('info');
+                      onClose();
+                    }}
+                    className="btn-secondary w-full"
+                  >
+                    Fechar
+                  </button>
+                </>
+              )}
+            </div>
           )}
         </div>
       </div>

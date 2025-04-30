@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import AdminLayout from './layouts/AdminLayout';
 import ClientLayout from './layouts/ClientLayout';
 import AdminDashboard from './pages/admin/Dashboard';
+import AdminLogin from './pages/admin/Login';
 import ClientDashboard from './pages/client/Dashboard';
 import PasswordReset from './pages/client/PasswordReset';
 import Terms from './pages/client/Terms';
@@ -30,7 +31,8 @@ function App() {
         <Route path="/reset-password" element={<PasswordReset />} />
 
         {/* Admin Routes */}
-        <Route path="/admin" element={<AdminLayout />}>
+        <Route path="/admin/login" element={<AdminLogin />} />
+        <Route path="/admin/*" element={<AdminLayout />}>
           <Route index element={<AdminDashboard />} />
         </Route>
 

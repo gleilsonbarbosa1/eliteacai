@@ -16,7 +16,9 @@ export default function PaymentButton({ productId, className, children }: Paymen
   const navigate = useNavigate();
 
   const handleClick = async () => {
+    if (loading) return;
     setLoading(true);
+
     try {
       // Check if user is logged in
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();

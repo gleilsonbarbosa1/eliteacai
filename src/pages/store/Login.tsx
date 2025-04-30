@@ -69,7 +69,7 @@ export default function StoreLogin() {
           </div>
           <Link
             to="/admin"
-            className="btn-secondary py-2 px-4 flex items-center gap-2"
+            className="btn-secondary py-2 px-4"
           >
             Área Admin
           </Link>
@@ -103,10 +103,11 @@ export default function StoreLogin() {
           </div>
           <button
             type="submit"
-            className="btn-primary w-full"
+            className="btn-primary w-full flex items-center justify-center gap-2 text-lg py-4"
             disabled={loading}
           >
-            {loading ? 'Entrando...' : 'Entrar'}
+            <LogIn className="w-5 h-5" />
+            {loading ? 'Processando...' : 'Entrar'}
           </button>
         </form>
       </div>
