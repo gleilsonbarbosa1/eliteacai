@@ -1,13 +1,7 @@
 import { supabase } from './supabase';
 
-export async function createCheckoutSession(priceId: string, mode: 'payment' | 'subscription') {
+export async function createCheckoutSession(priceId: string, mode: 'payment' | 'subscription', email?: string) {
   try {
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-    
-    if (sessionError || !session?.user) {
-      throw new Error('Você precisa estar logado para fazer uma compra');
-    }
-
     const response = await fetch(
       `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-checkout`,
       {
@@ -19,6 +13,7 @@ export async function createCheckoutSession(priceId: string, mode: 'payment' | '
         body: JSON.stringify({
           priceId,
           mode,
+          email,
           successUrl: `${window.location.origin}/payment/success`,
           cancelUrl: `${window.location.origin}/payment/cancel`,
         }),
@@ -33,7 +28,7 @@ export async function createCheckoutSession(priceId: string, mode: 'payment' | '
     const { url } = await response.json();
     return url;
   } catch (error: any) {
-    console.error('Error creating checkout session:', error);
-    throw error;
+    console.error('Erro ao criar sessão de pagamento:', error);
+    throw new Error(error.message || 'Erro ao processar pagamento. Por favor, tente novamente.');
   }
 }

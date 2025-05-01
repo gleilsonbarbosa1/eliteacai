@@ -31,7 +31,7 @@ export async function ensureValidSession() {
     
     // If refresh fails, throw error to trigger redirect
     if (!refreshedSession || refreshError) {
-      throw new Error('Invalid session');
+      throw new Error('Sessão expirada. Por favor, faça login novamente.');
     }
   }
   

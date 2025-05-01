@@ -1,5 +1,5 @@
 import { Outlet, useNavigate, Navigate } from 'react-router-dom';
-import { CreditCard, LogOut } from 'lucide-react';
+import { CreditCard, LogOut, User } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import type { Admin } from '../types';
@@ -90,6 +90,10 @@ export default function AdminLayout() {
               Área Administrativa
             </h1>
             <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2 text-gray-600">
+                <User className="w-4 h-4" />
+                <span className="text-sm font-medium">{adminData.email}</span>
+              </div>
               <button
                 onClick={handleAdminLogout}
                 className="btn-secondary py-2 px-4 flex items-center gap-2"

@@ -6,6 +6,8 @@ import AdminLogin from './pages/admin/Login';
 import ClientDashboard from './pages/client/Dashboard';
 import PasswordReset from './pages/client/PasswordReset';
 import Terms from './pages/client/Terms';
+import HowItWorks from './pages/client/HowItWorks';
+import Promotions from './pages/client/Promotions';
 import PaymentSuccess from './pages/payment/Success';
 import PaymentCancel from './pages/payment/Cancel';
 import { Toaster } from 'react-hot-toast';
@@ -21,6 +23,8 @@ function App() {
         <Route path="/client" element={<ClientLayout />}>
           <Route index element={<ClientDashboard />} />
           <Route path="terms" element={<Terms />} />
+          <Route path="how-it-works" element={<HowItWorks />} />
+          <Route path="promotions" element={<Promotions />} />
         </Route>
 
         {/* Payment Routes */}

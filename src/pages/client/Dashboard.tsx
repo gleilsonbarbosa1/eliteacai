@@ -1,16 +1,14 @@
 import { useState, useEffect } from 'react';
-import { Phone, Wallet, History, CreditCard, Gift, CheckCircle2, Clock, XCircle, ArrowRight, Sparkles, ShoppingBag, Receipt, ChevronDown, ChevronUp, User, Lock, LogOut, MapPin, Calendar, Mail, AlertCircle, LogIn } from 'lucide-react';
+import { Phone, Wallet, History, CreditCard, Gift, CheckCircle2, Clock, XCircle, ArrowRight, Sparkles, ShoppingBag, Receipt, ChevronDown, ChevronUp, User, Lock, LogOut, MapPin, Calendar, Mail, AlertCircle, LogIn, Tag } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import type { Customer, Transaction } from '../../types';
 import { supabase } from '../../lib/supabase';
 import { sendWhatsAppNotification } from '../../lib/notifications';
 import toast from 'react-hot-toast';
 import { getCurrentPosition, isWithinStoreRange, getClosestStore, formatDistance } from '../../utils/geolocation';
 import { getAvailableBalance, getNextExpiringCashback } from '../../utils/transactions';
-import CreditsModal from '../../components/CreditsModal';
+import type { Customer, Transaction } from '../../types';
 
 const STORE_CASHBACK_RATE = 0.05; // 5% cashback for in-store purchases
-const CREDIT_CASHBACK_RATE = 0.10; // 10% cashback for credit purchases
 
 function ClientDashboard() {
   const [customer, setCustomer] = useState<Customer | null>(null);
@@ -31,7 +29,6 @@ function ClientDashboard() {
   const [expandedTransactionId, setExpandedTransactionId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [nextExpiringAmount, setNextExpiringAmount] = useState<{ amount: number; date: Date } | null>(null);
-  const [showCreditsModal, setShowCreditsModal] = useState(false);
 
   useEffect(() => {
     if (customer) {
@@ -474,10 +471,10 @@ function ClientDashboard() {
                   <Sparkles className="w-10 h-10 text-purple-600" />
                 </div>
                 <h1 className="text-3xl font-bold text-gray-900 mb-3">
-                  Ganhe até 10% de Cashback!
+                  Ganhe 5% de Cashback!
                 </h1>
                 <p className="text-gray-600 text-lg">
-                  Compre créditos hoje e ganhe 10% de cashback! Nas compras na loja, ganhe 5% de volta!
+                  Em todas as suas compras na loja, ganhe 5% de volta!
                 </p>
               </div>
 
@@ -670,13 +667,22 @@ function ClientDashboard() {
                   {customer.phone}
                 </p>
               </div>
-              <button
-                onClick={handleLogout}
-                className="btn-secondary py-2 px-4 flex items-center gap-2 text-sm"
-              >
-                <LogOut className="w-4 h-4" />
-                Sair
-              </button>
+              <div className="flex items-center gap-3">
+                <Link
+                  to="/client/promotions"
+                  className="btn-secondary py-2 px-4 flex items-center gap-2 text-sm bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100"
+                >
+                  <Tag className="w-4 h-4" />
+                  Promoções
+                </Link>
+                <button
+                  onClick={handleLogout}
+                  className="btn-secondary py-2 px-4 flex items-center gap-2 text-sm"
+                >
+                  <LogOut className="w-4 h-4" />
+                  Sair
+                </button>
+              </div>
             </div>
 
             <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl p-6 text-white mb-6">
@@ -685,13 +691,6 @@ function ClientDashboard() {
                   <Wallet className="w-5 h-5" />
                   <span className="font-medium">Seu saldo disponível</span>
                 </div>
-                <button
-                  onClick={() => setShowCreditsModal(true)}
-                  className="bg-white/20 hover:bg-white/30 text-white rounded-xl py-2 px-4 flex items-center gap-2 text-sm transition-colors"
-                >
-                  <Gift className="w-4 h-4" />
-                  Comprar Créditos
-                </button>
               </div>
               <div className="text-4xl font-bold mb-2">
                 R$ {availableBalance.toFixed(2)}
@@ -938,14 +937,6 @@ function ClientDashboard() {
             </div>
           </div>
         </>
-      )}
-
-      {showCreditsModal && (
-        <CreditsModal
-          isOpen={showCreditsModal}
-          onClose={() => setShowCreditsModal(false)}
-          customer={customer}
-        />
       )}
     </div>
   );

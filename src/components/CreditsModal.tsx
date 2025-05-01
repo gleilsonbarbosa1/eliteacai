@@ -1,9 +1,8 @@
 import { useState } from 'react';
-import { X, Wallet, CheckCircle2, Scale, CreditCard, Coins, Gift, Copy, QrCode } from 'lucide-react';
+import { X, Wallet, CheckCircle2, Scale, Coins, Gift, Copy, QrCode } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { Customer } from '../types';
 import { createPixPayment } from '../lib/pix';
-import PaymentButton from './PaymentButton';
 
 interface CreditsModalProps {
   isOpen: boolean;
@@ -13,61 +12,9 @@ interface CreditsModalProps {
 
 export default function CreditsModal({ isOpen, onClose, customer }: CreditsModalProps) {
   const [loading, setLoading] = useState(false);
-  const [step, setStep] = useState<'info' | 'purchase' | 'pix'>('info');
+  const [step, setStep] = useState<'info' | 'purchase'>('info');
   const [email, setEmail] = useState('');
   const [selectedAmount, setSelectedAmount] = useState<number>(10);
-  const [paymentMethod, setPaymentMethod] = useState<'pix' | 'card'>('pix');
-  const [pixData, setPixData] = useState<{
-    creditId: string;
-    pixCopiaECola: string;
-    qrCodeUrl: string;
-    transactionId: string;
-  } | null>(null);
-
-  const handlePurchase = async () => {
-    if (loading) return;
-    
-    setLoading(true);
-    try {
-      if (!customer && !email) {
-        toast.error('Por favor, informe seu email');
-        return;
-      }
-
-      if (!customer && !email.match(/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/)) {
-        toast.error('Por favor, informe um email válido');
-        return;
-      }
-
-      if (paymentMethod === 'pix') {
-        const data = await createPixPayment(
-          selectedAmount,
-          customer?.email || email,
-          customer?.id
-        );
-        
-        setPixData(data);
-        setStep('pix');
-      }
-    } catch (error: any) {
-      console.error('Error purchasing credits:', error);
-      toast.error(error.message || 'Erro ao processar sua compra');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const copyPixCode = async () => {
-    if (!pixData?.pixCopiaECola) return;
-    
-    try {
-      await navigator.clipboard.writeText(pixData.pixCopiaECola);
-      toast.success('Código PIX copiado!');
-    } catch (err) {
-      console.error('Failed to copy:', err);
-      toast.error('Erro ao copiar código PIX');
-    }
-  };
 
   if (!isOpen) return null;
 
@@ -91,292 +38,90 @@ export default function CreditsModal({ isOpen, onClose, customer }: CreditsModal
         </div>
 
         <div className="p-6">
-          {step === 'info' ? (
-            <>
-              <p className="text-gray-600 mb-6">
-                Garanta mais praticidade nas suas compras!
-              </p>
+          <p className="text-gray-600 mb-6">
+            Garanta mais praticidade nas suas compras!
+          </p>
 
-              <div className="space-y-6">
-                <section>
-                  <h3 className="font-medium text-gray-900 flex items-center gap-2 mb-3">
-                    <CheckCircle2 className="w-5 h-5 text-purple-600" />
-                    Como funciona
-                  </h3>
-                  <ul className="space-y-2 text-gray-600">
-                    <li className="flex items-start gap-2">
-                      <span className="text-purple-600 mt-1">•</span>
-                      Escolha o valor que deseja comprar.
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="text-purple-600 mt-1">•</span>
-                      Pague com PIX ou cartão.
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="text-purple-600 mt-1">•</span>
-                      Seu saldo de crédito ficará disponível imediatamente para utilizar em compras futuras.
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="text-purple-600 mt-1">•</span>
-                      Comprando créditos, você ainda acumula cashback normalmente!
-                    </li>
-                  </ul>
-                </section>
+          <div className="space-y-6">
+            <section>
+              <h3 className="font-medium text-gray-900 flex items-center gap-2 mb-3">
+                <CheckCircle2 className="w-5 h-5 text-purple-600" />
+                Como funciona
+              </h3>
+              <ul className="space-y-2 text-gray-600">
+                <li className="flex items-start gap-2">
+                  <span className="text-purple-600 mt-1">•</span>
+                  Escolha o valor que deseja comprar.
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-purple-600 mt-1">•</span>
+                  Pague diretamente na loja.
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-purple-600 mt-1">•</span>
+                  Seu saldo de crédito ficará disponível imediatamente para utilizar em compras futuras.
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-purple-600 mt-1">•</span>
+                  Comprando créditos, você ainda acumula cashback normalmente!
+                </li>
+              </ul>
+            </section>
 
-                <section>
-                  <h3 className="font-medium text-gray-900 flex items-center gap-2 mb-3">
-                    <Coins className="w-5 h-5 text-purple-600" />
-                    Vantagens
-                  </h3>
-                  <ul className="space-y-2 text-gray-600">
-                    <li className="flex items-start gap-2">
-                      <span className="text-purple-600 mt-1">•</span>
-                      Mais agilidade no pagamento na loja.
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="text-purple-600 mt-1">•</span>
-                      Não precisa usar cartão ou dinheiro a cada compra.
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="text-purple-600 mt-1">•</span>
-                      Aproveite promoções exclusivas para quem compra créditos.
-                    </li>
-                  </ul>
-                </section>
+            <section>
+              <h3 className="font-medium text-gray-900 flex items-center gap-2 mb-3">
+                <Coins className="w-5 h-5 text-purple-600" />
+                Vantagens
+              </h3>
+              <ul className="space-y-2 text-gray-600">
+                <li className="flex items-start gap-2">
+                  <span className="text-purple-600 mt-1">•</span>
+                  Mais agilidade no pagamento na loja.
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-purple-600 mt-1">•</span>
+                  Não precisa usar cartão ou dinheiro a cada compra.
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-purple-600 mt-1">•</span>
+                  Aproveite promoções exclusivas para quem compra créditos.
+                </li>
+              </ul>
+            </section>
 
-                <section>
-                  <h3 className="font-medium text-gray-900 flex items-center gap-2 mb-3">
-                    <Scale className="w-5 h-5 text-purple-600" />
-                    Regras
-                  </h3>
-                  <ul className="space-y-2 text-gray-600">
-                    <li className="flex items-start gap-2">
-                      <span className="text-purple-600 mt-1">•</span>
-                      Os créditos são pessoais e intransferíveis.
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="text-purple-600 mt-1">•</span>
-                      Não são reembolsáveis em dinheiro.
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="text-purple-600 mt-1">•</span>
-                      Validade dos créditos: 90 dias após a compra.
-                    </li>
-                  </ul>
-                </section>
+            <section>
+              <h3 className="font-medium text-gray-900 flex items-center gap-2 mb-3">
+                <Scale className="w-5 h-5 text-purple-600" />
+                Regras
+              </h3>
+              <ul className="space-y-2 text-gray-600">
+                <li className="flex items-start gap-2">
+                  <span className="text-purple-600 mt-1">•</span>
+                  Os créditos são pessoais e intransferíveis.
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-purple-600 mt-1">•</span>
+                  Não são reembolsáveis em dinheiro.
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-purple-600 mt-1">•</span>
+                  Validade dos créditos: 90 dias após a compra.
+                </li>
+              </ul>
+            </section>
+          </div>
 
-                <section>
-                  <h3 className="font-medium text-gray-900 flex items-center gap-2 mb-3">
-                    <CreditCard className="w-5 h-5 text-purple-600" />
-                    Formas de pagamento
-                  </h3>
-                  <ul className="space-y-2 text-gray-600">
-                    <li className="flex items-start gap-2">
-                      <span className="text-purple-600 mt-1">•</span>
-                      PIX (aprovação imediata)
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="text-purple-600 mt-1">•</span>
-                      Cartão de crédito
-                    </li>
-                  </ul>
-                </section>
-              </div>
-
-              <div className="mt-8 flex gap-3">
-                <button
-                  onClick={() => setStep('purchase')}
-                  className="btn-primary flex-1 flex items-center justify-center gap-2"
-                >
-                  <Wallet className="w-5 h-5" />
-                  Comprar Créditos
-                </button>
-                <button
-                  onClick={() => {
-                    setStep('info');
-                    onClose();
-                  }}
-                  className="btn-secondary flex-1"
-                >
-                  Fechar
-                </button>
-              </div>
-            </>
-          ) : step === 'purchase' ? (
-            <>
-              <div className="space-y-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-4">
-                    Escolha o valor dos créditos
-                  </label>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {[10, 20, 30, 40, 50].map((amount) => (
-                      <button
-                        key={amount}
-                        onClick={() => setSelectedAmount(amount)}
-                        className={`p-4 rounded-xl border-2 transition-all ${
-                          selectedAmount === amount
-                            ? 'border-purple-600 bg-purple-50'
-                            : 'border-gray-200 hover:border-purple-200'
-                        }`}
-                      >
-                        <div className="text-xl font-bold text-purple-600 mb-1">
-                          R$ {amount.toFixed(2)}
-                        </div>
-                        <div className="text-sm text-green-600 flex items-center gap-1">
-                          <Gift className="w-4 h-4" />
-                          + R$ {(amount * 0.10).toFixed(2)} de cashback
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {!customer && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Seu email
-                    </label>
-                    <input
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="input-field"
-                      placeholder="exemplo@email.com"
-                      required
-                    />
-                    <p className="mt-2 text-sm text-gray-500">
-                      Informe seu email para receber os créditos
-                    </p>
-                  </div>
-                )}
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-4">
-                    Escolha a forma de pagamento
-                  </label>
-                  <div className="grid grid-cols-2 gap-4">
-                    <button
-                      onClick={() => setPaymentMethod('pix')}
-                      className={`p-4 rounded-xl border-2 transition-all ${
-                        paymentMethod === 'pix'
-                          ? 'border-purple-600 bg-purple-50'
-                          : 'border-gray-200 hover:border-purple-200'
-                      }`}
-                    >
-                      <div className="flex items-center justify-center gap-2 text-lg font-medium">
-                        <QrCode className="w-5 h-5" />
-                        PIX
-                      </div>
-                    </button>
-                    <button
-                      onClick={() => setPaymentMethod('card')}
-                      className={`p-4 rounded-xl border-2 transition-all ${
-                        paymentMethod === 'card'
-                          ? 'border-purple-600 bg-purple-50'
-                          : 'border-gray-200 hover:border-purple-200'
-                      }`}
-                    >
-                      <div className="flex items-center justify-center gap-2 text-lg font-medium">
-                        <CreditCard className="w-5 h-5" />
-                        Cartão
-                      </div>
-                    </button>
-                  </div>
-                </div>
-
-                <div className="pt-6 border-t border-gray-100">
-                  <div className="flex gap-3">
-                    <button
-                      onClick={() => setStep('info')}
-                      className="btn-secondary flex-1"
-                    >
-                      Voltar
-                    </button>
-                    {paymentMethod === 'pix' ? (
-                      <button
-                        onClick={handlePurchase}
-                        disabled={loading}
-                        className="btn-primary flex-1 flex items-center justify-center gap-2"
-                      >
-                        {loading ? (
-                          'Processando...'
-                        ) : (
-                          <>
-                            <QrCode className="w-5 h-5" />
-                            Pagar com PIX
-                          </>
-                        )}
-                      </button>
-                    ) : (
-                      <PaymentButton
-                        productId={`credits_${selectedAmount}` as keyof typeof STRIPE_PRODUCTS}
-                        className="btn-primary flex-1 flex items-center justify-center gap-2"
-                      >
-                        <CreditCard className="w-5 h-5" />
-                        Pagar com Cartão
-                      </PaymentButton>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </>
-          ) : (
-            <div className="space-y-6">
-              <div className="text-center">
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                  Pagamento PIX
-                </h3>
-                <p className="text-gray-600">
-                  Escaneie o QR Code ou copie o código PIX abaixo para realizar o pagamento
-                </p>
-              </div>
-
-              {pixData && (
-                <>
-                  <div className="flex justify-center">
-                    <img
-                      src={pixData.qrCodeUrl}
-                      alt="QR Code PIX"
-                      className="w-64 h-64"
-                    />
-                  </div>
-
-                  <div className="bg-gray-50 p-4 rounded-xl">
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="text-sm text-gray-500">
-                        Código PIX Copia e Cola
-                      </div>
-                      <button
-                        onClick={copyPixCode}
-                        className="text-purple-600 hover:text-purple-700 transition-colors"
-                      >
-                        <Copy className="w-5 h-5" />
-                      </button>
-                    </div>
-                    <div className="mt-2 text-xs font-mono break-all">
-                      {pixData.pixCopiaECola}
-                    </div>
-                  </div>
-
-                  <div className="text-sm text-gray-500">
-                    <p>Após o pagamento, seus créditos serão adicionados automaticamente à sua conta.</p>
-                    <p className="mt-2">ID da transação: {pixData.transactionId}</p>
-                  </div>
-
-                  <button
-                    onClick={() => {
-                      setStep('info');
-                      onClose();
-                    }}
-                    className="btn-secondary w-full"
-                  >
-                    Fechar
-                  </button>
-                </>
-              )}
-            </div>
-          )}
+          <div className="mt-8 flex gap-3">
+            <button
+              onClick={() => {
+                setStep('info');
+                onClose();
+              }}
+              className="btn-secondary flex-1"
+            >
+              Fechar
+            </button>
+          </div>
         </div>
       </div>
     </div>
