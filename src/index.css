@@ -49,7 +49,6 @@
     @apply text-red-700 bg-red-50 border border-red-200;
   }
 
-  /* Balance Display */
   .balance-card {
     @apply glass-card p-6 sm:p-8 relative overflow-hidden;
   }
@@ -79,7 +78,6 @@
     background-image: radial-gradient(circle at 50% 50%, theme(colors.purple.500) 0%, transparent 50%);
   }
 
-  /* Responsive Design */
   .dashboard-container {
     @apply max-w-lg mx-auto space-y-6 px-4 sm:px-0;
   }
@@ -112,24 +110,6 @@
     @apply text-center text-gray-500 py-8;
   }
 
-  /* Animations */
-  .fade-enter {
-    @apply opacity-0;
-  }
-
-  .fade-enter-active {
-    @apply opacity-100 transition-opacity duration-300;
-  }
-
-  .fade-exit {
-    @apply opacity-100;
-  }
-
-  .fade-exit-active {
-    @apply opacity-0 transition-opacity duration-300;
-  }
-
-  /* Mobile Optimizations */
   @media (max-width: 640px) {
     .glass-card {
       @apply rounded-2xl;

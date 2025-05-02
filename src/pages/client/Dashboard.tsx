@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Phone, Wallet, History, CreditCard, Gift, CheckCircle2, Clock, XCircle, ArrowRight, Sparkles, ShoppingBag, Receipt, ChevronDown, ChevronUp, User, Lock, LogOut, MapPin, Calendar, Mail, AlertCircle, LogIn, Tag } from 'lucide-react';
+import { Phone, Wallet, History, ArrowRight, Sparkles, ShoppingBag, Receipt, ChevronDown, ChevronUp, User, Lock, LogOut, MapPin, Calendar, Mail, AlertCircle, LogIn, Tag, Trophy, CreditCard, Gift, CheckCircle2, Clock, XCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { sendWhatsAppNotification } from '../../lib/notifications';
@@ -29,11 +29,14 @@ function ClientDashboard() {
   const [expandedTransactionId, setExpandedTransactionId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [nextExpiringAmount, setNextExpiringAmount] = useState<{ amount: number; date: Date } | null>(null);
+  const [isTopCustomer, setIsTopCustomer] = useState(false);
+  const [topCustomerRank, setTopCustomerRank] = useState<number | null>(null);
 
   useEffect(() => {
     if (customer) {
       loadTransactions();
       calculateAvailableBalance();
+      checkTopCustomerStatus();
     }
   }, [customer?.id]);
 
@@ -72,9 +75,50 @@ function ClientDashboard() {
       }
 
       setTransactions(data);
+      await calculateAvailableBalance();
     } catch (error: any) {
       console.error('Error loading transactions:', error);
       toast.error('Erro ao carregar transações');
+    }
+  };
+
+  const checkTopCustomerStatus = async () => {
+    if (!customer) return;
+
+    try {
+      const { data: customers, error } = await supabase
+        .from('customers')
+        .select(`
+          id,
+          transactions (
+            amount,
+            cashback_amount,
+            type,
+            status
+          )
+        `);
+
+      if (error) throw error;
+
+      const customersWithCashback = customers.map(c => {
+        const totalCashback = c.transactions
+          ?.filter((t: any) => t.type === 'purchase' && t.status === 'approved')
+          .reduce((sum: number, t: any) => sum + (t.cashback_amount || 0), 0) || 0;
+
+        return {
+          id: c.id,
+          totalCashback
+        };
+      });
+
+      customersWithCashback.sort((a, b) => b.totalCashback - a.totalCashback);
+
+      const rank = customersWithCashback.findIndex(c => c.id === customer.id) + 1;
+      
+      setTopCustomerRank(rank <= 5 ? rank : null);
+      setIsTopCustomer(rank === 1);
+    } catch (error) {
+      console.error('Error checking top customer status:', error);
     }
   };
 
@@ -229,27 +273,13 @@ function ClientDashboard() {
       return;
     }
 
-    if (isSubmitting) {
-      return;
-    }
+    if (isSubmitting) return;
 
     setIsSubmitting(true);
     setLoading(true);
 
     try {
-      const { error: healthCheckError } = await supabase.from('transactions').select('id').limit(1);
-      if (healthCheckError) {
-        console.error('Supabase connection error:', healthCheckError);
-        throw new Error('Erro de conexão com o servidor. Por favor, verifique sua conexão com a internet.');
-      }
-
-      let position;
-      try {
-        position = await getCurrentPosition();
-      } catch (geoError: any) {
-        throw new Error(geoError.message || 'Erro ao obter localização');
-      }
-
+      const position = await getCurrentPosition();
       const { latitude, longitude } = position.coords;
 
       if (!isWithinStoreRange(latitude, longitude)) {
@@ -271,13 +301,11 @@ function ClientDashboard() {
         return;
       }
 
-      const cashbackAmount = Number((amount * STORE_CASHBACK_RATE).toFixed(2));
-
-      await new Promise(resolve => setTimeout(resolve, 500));
-
       const expirationDate = new Date();
       expirationDate.setMonth(expirationDate.getMonth() + 2, 0);
       expirationDate.setHours(23, 59, 59, 999);
+
+      const cashbackAmount = Number((amount * STORE_CASHBACK_RATE).toFixed(2));
 
       const { error } = await supabase
         .from('transactions')
@@ -294,18 +322,7 @@ function ClientDashboard() {
           expires_at: expirationDate.toISOString()
         });
 
-      if (error) {
-        console.error('Transaction insert error:', error);
-        if (error.code === 'PGRST301') {
-          throw new Error('Sessão expirada. Por favor, faça login novamente.');
-        } else if (error.code === '23503') {
-          throw new Error('Erro de validação. Por favor, tente novamente.');
-        } else if (error.code === '23505') {
-          throw new Error('Transação duplicada. Por favor, aguarde alguns minutos antes de tentar novamente.');
-        } else {
-          throw new Error('Erro ao registrar transação. Por favor, tente novamente.');
-        }
-      }
+      if (error) throw error;
 
       setTransactionAmount('');
       await Promise.all([
@@ -313,15 +330,10 @@ function ClientDashboard() {
         calculateAvailableBalance()
       ]);
 
-      toast.success(
-        <div className="flex flex-col gap-2">
-          <p>Compra registrada com sucesso! Aguarde a aprovação.</p>
-          <p className="text-sm text-green-600">Você está em uma loja Elite Açaí autorizada.</p>
-        </div>
-      );
+      toast.success('Compra registrada com sucesso! Aguarde a aprovação.');
     } catch (error: any) {
-      console.error('Transaction error:', error);
-      toast.error(error.message || 'Erro ao registrar compra. Por favor, tente novamente.');
+      console.error('Error:', error);
+      toast.error(error.message || 'Erro ao registrar compra');
     } finally {
       setLoading(false);
       setIsSubmitting(false);
@@ -685,6 +697,32 @@ function ClientDashboard() {
               </div>
             </div>
 
+            {isTopCustomer && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-6">
+                <div className="flex items-center gap-2 text-yellow-800">
+                  <Trophy className="w-5 h-5 text-yellow-600" />
+                  <span className="font-medium">Parabéns! Você é quem mais usa cashback este mês!</span>
+                </div>
+                <p className="text-yellow-700 text-sm mt-1">
+                  Continue comprando para manter sua posição!
+                </p>
+              </div>
+            )}
+
+            {topCustomerRank && topCustomerRank <= 5 && !isTopCustomer && (
+              <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 mb-6">
+                <div className="flex items-center gap-2 text-purple-800">
+                  <Trophy className="w-5 h-5 text-purple-600" />
+                  <span className="font-medium">
+                    Você está em {topCustomerRank}º lugar no ranking de cashback!
+                  </span>
+                </div>
+                <p className="text-purple-700 text-sm mt-1">
+                  Continue comprando para subir no ranking!
+                </p>
+              </div>
+            )}
+
             <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl p-6 text-white mb-6">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
@@ -907,20 +945,6 @@ function ClientDashboard() {
                             <span className="text-gray-600">ID da Transação</span>
                             <span className="font-mono text-gray-900">{transaction.id}</span>
                           </div>
-                          {transaction.receipt_url && (
-                            <div className="flex items-center justify-between text-sm">
-                              <span className="text-gray-600">Comprovante</span>
-                              <a
-                                href={transaction.receipt_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-purple-600 hover:text-purple-700 transition-colors flex items-center gap-1"
-                              >
-                                <Receipt className="w-4 h-4" />
-                                Ver comprovante
-                              </a>
-                            </div>
-                          )}
                           {transaction.type === 'purchase' && transaction.expires_at && (
                             <div className="flex items-center justify-between text-sm">
                               <span className="text-gray-600">Cashback expira em</span>

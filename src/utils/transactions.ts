@@ -104,7 +104,30 @@ export async function getAvailableBalance(customerId: string): Promise<number> {
       .rpc('get_available_balance', { p_customer_id: customerId });
 
     if (error) throw error;
-    return Math.round((balance || 0) * 100) / 100;
+
+    // Get customer's current transactions to calculate balance
+    const { data: transactions, error: txError } = await supabase
+      .from('transactions')
+      .select('*')
+      .eq('customer_id', customerId)
+      .in('status', ['approved', 'pending']);
+
+    if (txError) throw txError;
+
+    // Calculate balance from transactions
+    let calculatedBalance = 0;
+    transactions?.forEach(tx => {
+      if (tx.status === 'approved') {
+        if (tx.type === 'purchase' && tx.expires_at && new Date(tx.expires_at) > new Date()) {
+          calculatedBalance += tx.cashback_amount;
+        } else if (tx.type === 'redemption') {
+          calculatedBalance -= tx.amount;
+        }
+      }
+    });
+
+    // Return the calculated balance, rounded to 2 decimal places
+    return Math.round(calculatedBalance * 100) / 100;
   } catch (error) {
     console.error('Error getting available balance:', error);
     return 0;

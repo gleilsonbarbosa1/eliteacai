@@ -32,8 +32,17 @@ export default function AdminLayout() {
 
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       
-      if (sessionError) throw sessionError;
-      if (!session?.user) throw new Error('Sessão não encontrada');
+      if (sessionError) {
+        throw new Error('Erro ao recuperar sessão');
+      }
+
+      // More specific session check
+      if (!session || !session.user) {
+        // Don't throw error, just redirect to login
+        setAdminData(null);
+        navigate('/admin/login');
+        return;
+      }
 
       const { data: adminData, error: adminError } = await supabase
         .from('admins')
@@ -41,15 +50,24 @@ export default function AdminLayout() {
         .eq('id', session.user.id)
         .single();
 
-      if (adminError || !adminData) {
-        throw new Error('Acesso não autorizado');
+      if (adminError) {
+        console.error('Error fetching admin data:', adminError);
+        throw new Error('Erro ao recuperar dados do administrador');
+      }
+
+      if (!adminData) {
+        // User exists but is not an admin
+        await supabase.auth.signOut();
+        toast.error('Acesso não autorizado');
+        navigate('/admin/login');
+        return;
       }
 
       setAdminData(adminData as Admin);
     } catch (error: any) {
       console.error('Error checking session:', error);
       await supabase.auth.signOut();
-      toast.error('Sessão expirada. Por favor, faça login novamente.');
+      toast.error(error.message || 'Erro ao verificar sessão');
       navigate('/admin/login');
     } finally {
       setLoading(false);
