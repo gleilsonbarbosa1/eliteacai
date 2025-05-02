@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Phone, Wallet, History, ArrowLeftRight, CreditCard, ChevronRight, Clock, CheckCircle2, XCircle, Image, FileText, User, Gift, ChevronLeft, Crown, Trophy, Calendar, BarChart3, TrendingUp, DollarSign, AlertTriangle, Circle, Users, Lock, Star, ShoppingBag, Coins, Activity, Clock3, TrendingDown, LineChart, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { Phone, Wallet, History, ArrowLeftRight, CreditCard, ChevronRight, Clock, CheckCircle2, XCircle, Image, FileText, User, Gift, ChevronLeft, Crown, Trophy, Calendar, BarChart3, TrendingUp, DollarSign, AlertTriangle, Circle, Users, Lock, Star, ShoppingBag, Coins, Activity, Clock3, TrendingDown } from 'lucide-react';
 import type { Customer, Transaction } from '../../types';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
@@ -26,12 +26,6 @@ interface ReportData {
   mostCommonHour: number;
   averageCashbackPerPurchase: number;
   weeklyFrequency: number;
-  weeklyGrowth: number;
-  monthlyGrowth: number;
-  activeUsersThisWeek: number;
-  activeUsersLastWeek: number;
-  activeUsersThisMonth: number;
-  activeUsersLastMonth: number;
 }
 
 interface LifecycleStats {
@@ -76,12 +70,6 @@ export default function AdminDashboard() {
     mostCommonHour: 0,
     averageCashbackPerPurchase: 0,
     weeklyFrequency: 0,
-    weeklyGrowth: 0,
-    monthlyGrowth: 0,
-    activeUsersThisWeek: 0,
-    activeUsersLastWeek: 0,
-    activeUsersThisMonth: 0,
-    activeUsersLastMonth: 0
   });
   const [lifecycleStats, setLifecycleStats] = useState<LifecycleStats>({
     new: 0,
@@ -195,7 +183,6 @@ export default function AdminDashboard() {
           startDate.setMonth(startDate.getMonth() - 1);
       }
 
-      // Get transactions for the selected period
       const { data: transactions, error } = await supabase
         .from('transactions')
         .select('*')
@@ -208,18 +195,22 @@ export default function AdminDashboard() {
         t.type === 'purchase' && t.status === 'approved'
       ) || [];
 
-      // Calculate basic metrics
-      const totalSales = approvedPurchases.reduce((sum, t) => sum + (t.amount || 0), 0);
-      const totalCashbackGenerated = approvedPurchases.reduce((sum, t) => sum + (t.cashback_amount || 0), 0);
-      const totalCashbackRedeemed = transactions?.filter(t =>
+      const approvedRedemptions = transactions?.filter(t =>
         t.type === 'redemption' && t.status === 'approved'
-      ).reduce((sum, t) => sum + (t.amount || 0), 0) || 0;
-      const totalExpired = transactions?.filter(t =>
+      ) || [];
+
+      const expiredTransactions = transactions?.filter(t =>
         t.type === 'purchase' && 
         t.status === 'approved' && 
         t.expires_at && 
         new Date(t.expires_at) <= new Date()
-      ).reduce((sum, t) => sum + (t.cashback_amount || 0), 0) || 0;
+      ) || [];
+
+      // Calculate basic metrics
+      const totalSales = approvedPurchases.reduce((sum, t) => sum + (t.amount || 0), 0);
+      const totalCashbackGenerated = approvedPurchases.reduce((sum, t) => sum + (t.cashback_amount || 0), 0);
+      const totalCashbackRedeemed = approvedRedemptions.reduce((sum, t) => sum + (t.amount || 0), 0);
+      const totalExpired = expiredTransactions.reduce((sum, t) => sum + (t.cashback_amount || 0), 0);
       const cashbackPercentage = totalSales > 0 ? (totalCashbackGenerated / totalSales) * 100 : 0;
 
       // Calculate average purchase amount
@@ -246,58 +237,6 @@ export default function AdminDashboard() {
       const daysBetween = (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24);
       const weeklyFrequency = (approvedPurchases.length / daysBetween) * 7;
 
-      // Calculate growth metrics
-      const now = new Date();
-      const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      const twoWeeksAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
-      const oneMonthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-      const twoMonthsAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
-
-      // Get active users for different periods
-      const { data: thisWeekUsers } = await supabase
-        .from('transactions')
-        .select('customer_id')
-        .gte('created_at', oneWeekAgo.toISOString())
-        .eq('type', 'purchase')
-        .eq('status', 'approved');
-
-      const { data: lastWeekUsers } = await supabase
-        .from('transactions')
-        .select('customer_id')
-        .gte('created_at', twoWeeksAgo.toISOString())
-        .lt('created_at', oneWeekAgo.toISOString())
-        .eq('type', 'purchase')
-        .eq('status', 'approved');
-
-      const { data: thisMonthUsers } = await supabase
-        .from('transactions')
-        .select('customer_id')
-        .gte('created_at', oneMonthAgo.toISOString())
-        .eq('type', 'purchase')
-        .eq('status', 'approved');
-
-      const { data: lastMonthUsers } = await supabase
-        .from('transactions')
-        .select('customer_id')
-        .gte('created_at', twoMonthsAgo.toISOString())
-        .lt('created_at', oneMonthAgo.toISOString())
-        .eq('type', 'purchase')
-        .eq('status', 'approved');
-
-      // Count unique users
-      const activeUsersThisWeek = new Set(thisWeekUsers?.map(t => t.customer_id)).size;
-      const activeUsersLastWeek = new Set(lastWeekUsers?.map(t => t.customer_id)).size;
-      const activeUsersThisMonth = new Set(thisMonthUsers?.map(t => t.customer_id)).size;
-      const activeUsersLastMonth = new Set(lastMonthUsers?.map(t => t.customer_id)).size;
-
-      // Calculate growth percentages
-      const weeklyGrowth = activeUsersLastWeek > 0 
-        ? ((activeUsersThisWeek - activeUsersLastWeek) / activeUsersLastWeek) * 100 
-        : 0;
-      const monthlyGrowth = activeUsersLastMonth > 0 
-        ? ((activeUsersThisMonth - activeUsersLastMonth) / activeUsersLastMonth) * 100 
-        : 0;
-
       setReportData({
         totalSales,
         totalCashbackGenerated,
@@ -307,13 +246,7 @@ export default function AdminDashboard() {
         averagePurchaseAmount,
         mostCommonHour: parseInt(mostCommonHour),
         averageCashbackPerPurchase,
-        weeklyFrequency,
-        weeklyGrowth,
-        monthlyGrowth,
-        activeUsersThisWeek,
-        activeUsersLastWeek,
-        activeUsersThisMonth,
-        activeUsersLastMonth
+        weeklyFrequency
       });
 
     } catch (error) {
@@ -792,7 +725,6 @@ export default function AdminDashboard() {
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       handleReportAccess();
-                    
                     }
                   }}
                 />
@@ -904,61 +836,6 @@ export default function AdminDashboard() {
                 </div>
                 <div className="text-2xl font-bold text-orange-700">
                   {reportData.weeklyFrequency.toFixed(1)} compras/semana
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="glass-card p-6 mb-6">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="card-header !mb-0">
-                <LineChart className="w-5 h-5 text-purple-600" />
-                Crescimento do Sistema
-              </h2>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="p-4 bg-blue-50 rounded-xl border border-blue-100">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2 text-blue-700">
-                    <TrendingUp className="w-5 h-5" />
-                    <span className="font-medium">Crescimento Semanal</span>
-                  </div>
-                  <div className={`flex items-center gap-1 ${reportData.weeklyGrowth >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {reportData.weeklyGrowth >= 0 ? (
-                      <ArrowUpRight className="w-4 h-4" />
-                    ) : (
-                      <ArrowDownRight className="w-4 h-4" />
-                    )}
-                    <span className="font-bold">{Math.abs(reportData.weeklyGrowth).toFixed(1)}%</span>
-                  </div>
-                </div>
-                <div className="mt-2 text-sm text-blue-600">
-                  Usuários ativos esta semana: {reportData.activeUsersThisWeek}
-                  <br />
-                  Usuários ativos semana passada: {reportData.activeUsersLastWeek}
-                </div>
-              </div>
-
-              <div className="p-4 bg-purple-50 rounded-xl border border-purple-100">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2 text-purple-700">
-                    <TrendingUp className="w-5 h-5" />
-                    <span className="font-medium">Crescimento Mensal</span>
-                  </div>
-                  <div className={`flex items-center gap-1 ${reportData.monthlyGrowth >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {reportData.monthlyGrowth >= 0 ? (
-                      <ArrowUpRight className="w-4 h-4" />
-                    ) : (
-                      <ArrowDownRight className="w-4 h-4" />
-                    )}
-                    <span className="font-bold">{Math.abs(reportData.monthlyGrowth).toFixed(1)}%</span>
-                  </div>
-                </div>
-                <div className="mt-2 text-sm text-purple-600">
-                  Usuários ativos este mês: {reportData.activeUsersThisMonth}
-                  <br />
-                  Usuários ativos mês passado: {reportData.activeUsersLastMonth}
                 </div>
               </div>
             </div>

@@ -91,13 +91,5 @@ export const STORE_LOCATIONS: StoreLocation[] = [
     latitude: -3.8633379,
     longitude: -38.6319105,
     radius: 40 // 40 meters radius
-  },
-  {
-    id: 'store4',
-    name: 'Elite Açaí Test Store',
-    // This will be replaced with your current location
-    latitude: 0,
-    longitude: 0,
-    radius: 1000 // 1km radius for testing
   }
 ];
