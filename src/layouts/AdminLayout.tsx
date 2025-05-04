@@ -33,16 +33,18 @@ export default function AdminLayout() {
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       
       if (sessionError) {
-        throw new Error('Erro ao recuperar sessão');
+        console.error('Session error:', sessionError);
+        throw new Error(`Erro ao recuperar sessão: ${sessionError.message}`);
       }
 
-      // More specific session check
       if (!session || !session.user) {
-        // Don't throw error, just redirect to login
+        console.log('No active session found');
         setAdminData(null);
         navigate('/admin/login');
         return;
       }
+
+      console.log('Fetching admin data for user:', session.user.id);
 
       const { data: adminData, error: adminError } = await supabase
         .from('admins')
@@ -51,21 +53,27 @@ export default function AdminLayout() {
         .single();
 
       if (adminError) {
-        console.error('Error fetching admin data:', adminError);
-        throw new Error('Erro ao recuperar dados do administrador');
+        console.error('Admin data fetch error:', adminError);
+        if (adminError.code === 'PGRST116') {
+          // No data found
+          throw new Error('Usuário não tem permissão de administrador');
+        } else {
+          throw new Error(`Erro ao recuperar dados do administrador: ${adminError.message}`);
+        }
       }
 
       if (!adminData) {
-        // User exists but is not an admin
+        console.log('No admin data found for user');
         await supabase.auth.signOut();
         toast.error('Acesso não autorizado');
         navigate('/admin/login');
         return;
       }
 
+      console.log('Admin data retrieved successfully');
       setAdminData(adminData as Admin);
     } catch (error: any) {
-      console.error('Error checking session:', error);
+      console.error('Error in checkSession:', error);
       await supabase.auth.signOut();
       toast.error(error.message || 'Erro ao verificar sessão');
       navigate('/admin/login');
@@ -81,8 +89,8 @@ export default function AdminLayout() {
       navigate('/admin/login');
       toast.success('Sessão encerrada com sucesso');
     } catch (error: any) {
-      console.error('Error logging out:', error);
-      toast.error('Erro ao fazer logout');
+      console.error('Logout error:', error);
+      toast.error('Erro ao fazer logout: ' + error.message);
     }
   };
 

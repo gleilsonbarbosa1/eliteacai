@@ -30,6 +30,7 @@ export interface Transaction {
     latitude: number;
     longitude: number;
   };
+  comment?: string;
 }
 
 export interface Credit {
@@ -67,6 +68,7 @@ export interface StoreLocation {
   latitude: number;
   longitude: number;
   radius: number; // in meters
+  address: string;
 }
 
 // Store locations for geofencing
@@ -76,20 +78,23 @@ export const STORE_LOCATIONS: StoreLocation[] = [
     name: 'Elite Açaí 1',
     latitude: -3.859981833155958,
     longitude: -38.63311136233465,
-    radius: 40 // 40 meters radius
+    radius: 40, // 40 meters radius
+    address: 'Rua Dois, 2130‑A, Residencial 1 – Cágado'
   },
   {
     id: 'store2',
     name: 'Elite Açaí 2',
     latitude: -3.8585200957980037,
     longitude: -38.63444706015108,
-    radius: 40 // 40 meters radius
+    radius: 40, // 40 meters radius
+    address: 'Rua Um, 1614‑C, Residencial 1 – Cágado'
   },
   {
     id: 'store3',
-    name: 'Elite Açaí 3',
+    name: 'Elite Açaí (Teste)',
     latitude: -3.8633379,
     longitude: -38.6319105,
-    radius: 40 // 40 meters radius
+    radius: 40, // 40 meters radius
+    address: 'Loja de Teste'
   }
 ];

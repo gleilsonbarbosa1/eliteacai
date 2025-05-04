@@ -6,9 +6,25 @@ import { sendWhatsAppNotification } from '../../lib/notifications';
 import toast from 'react-hot-toast';
 import { getCurrentPosition, isWithinStoreRange, getClosestStore, formatDistance } from '../../utils/geolocation';
 import { getAvailableBalance, getNextExpiringCashback } from '../../utils/transactions';
-import type { Customer, Transaction } from '../../types';
+import type { Customer, Transaction, StoreLocation } from '../../types';
+import PromotionsAlert from '../../components/PromotionsAlert';
 
 const STORE_CASHBACK_RATE = 0.05; // 5% cashback for in-store purchases
+
+const STORE_LOCATIONS: StoreLocation[] = [
+  {
+    id: 'store1',
+    name: 'Loja 1: Rua Dois, 2130‑A, Residencial 1 – Cágado',
+    latitude: -3.7456789,
+    longitude: -38.5678901
+  },
+  {
+    id: 'store2',
+    name: 'Loja 2: Rua Um, 1614‑C, Residencial 1 – Cágado',
+    latitude: -3.7567890,
+    longitude: -38.5789012
+  }
+];
 
 function ClientDashboard() {
   const [customer, setCustomer] = useState<Customer | null>(null);
@@ -20,6 +36,7 @@ function ClientDashboard() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLogin, setIsLogin] = useState(true);
   const [transactionAmount, setTransactionAmount] = useState('');
+  const [selectedStore, setSelectedStore] = useState<StoreLocation | null>(null);
   const [showRedemptionForm, setShowRedemptionForm] = useState(false);
   const [redemptionAmount, setRedemptionAmount] = useState('');
   const [loading, setLoading] = useState(false);
@@ -31,6 +48,7 @@ function ClientDashboard() {
   const [nextExpiringAmount, setNextExpiringAmount] = useState<{ amount: number; date: Date } | null>(null);
   const [isTopCustomer, setIsTopCustomer] = useState(false);
   const [topCustomerRank, setTopCustomerRank] = useState<number | null>(null);
+  const [comment, setComment] = useState('');
 
   useEffect(() => {
     if (customer) {
@@ -265,7 +283,10 @@ function ClientDashboard() {
 
   const addTransaction = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!customer) return;
+    if (!customer || !selectedStore) {
+      toast.error('Por favor, selecione uma loja');
+      return;
+    }
 
     const amount = parseFloat(transactionAmount);
     if (isNaN(amount) || amount <= 0) {
@@ -315,16 +336,20 @@ function ClientDashboard() {
           cashback_amount: cashbackAmount,
           type: 'purchase',
           status: 'pending',
+          store_id: selectedStore.id,
           location: {
             latitude,
             longitude
           },
-          expires_at: expirationDate.toISOString()
+          expires_at: expirationDate.toISOString(),
+          comment: comment.trim() || null
         });
 
       if (error) throw error;
 
       setTransactionAmount('');
+      setComment('');
+      setSelectedStore(null);
       await Promise.all([
         loadTransactions(),
         calculateAvailableBalance()
@@ -668,6 +693,7 @@ function ClientDashboard() {
         </div>
       ) : (
         <>
+          <PromotionsAlert />
           <div className="glass-card p-8">
             <div className="flex items-center justify-between mb-6">
               <div>
@@ -749,6 +775,28 @@ function ClientDashboard() {
                 <form onSubmit={addTransaction} className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Selecione a Loja
+                    </label>
+                    <select
+                      value={selectedStore?.id || ''}
+                      onChange={(e) => {
+                        const store = STORE_LOCATIONS.find(s => s.id === e.target.value);
+                        setSelectedStore(store || null);
+                      }}
+                      className="input-field text-lg"
+                      required
+                    >
+                      <option value="">Selecione uma loja</option>
+                      {STORE_LOCATIONS.map(store => (
+                        <option key={store.id} value={store.id}>
+                          {store.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
                       Valor da Compra
                     </label>
                     <input
@@ -766,6 +814,18 @@ function ClientDashboard() {
                         Você receberá R$ {(parseFloat(transactionAmount) * STORE_CASHBACK_RATE).toFixed(2)} em cashback
                       </p>
                     )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Comentário ou Sugestão (opcional)
+                    </label>
+                    <textarea
+                      value={comment}
+                      onChange={e => setComment(e.target.value)}
+                      className="input-field text-base min-h-[100px]"
+                      placeholder="Deixe seu comentário ou sugestão aqui..."
+                    />
                   </div>
 
                   <button
@@ -951,6 +1011,20 @@ function ClientDashboard() {
                               <span className="text-gray-900">
                                 {new Date(transaction.expires_at).toLocaleDateString('pt-BR')}
                               </span>
+                            </div>
+                          )}
+                          {transaction.store_id && (
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="text-gray-600">Loja</span>
+                              <span className="text-gray-900">
+                                {STORE_LOCATIONS.find(s => s.id === transaction.store_id)?.name || 'Loja não encontrada'}
+                              </span>
+                            </div>
+                          )}
+                          {transaction.comment && (
+                            <div className="text-sm">
+                              <span className="text-gray-600">Comentário:</span>
+                              <p className="mt-1 text-gray-900">{transaction.comment}</p>
                             </div>
                           )}
                         </div>
