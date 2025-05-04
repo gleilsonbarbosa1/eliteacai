@@ -16,8 +16,6 @@ export default function Dashboard() {
   const [currentTransactions, setCurrentTransactions] = useState([]);
   const [reportData, setReportData] = useState(null);
   const [showAdvancedReport, setShowAdvancedReport] = useState(false);
-  const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [password, setPassword] = useState('');
   const [metrics, setMetrics] = useState({
     totalCustomers: 0,
     activeCustomers: 0,
@@ -283,25 +281,6 @@ export default function Dashboard() {
     }
   };
 
-  const handlePasswordSubmit = (e) => {
-    e.preventDefault();
-    if (password === 'Gle0103,,#*') {
-      setShowPasswordModal(false);
-      setShowAdvancedReport(true);
-      setPassword('');
-    } else {
-      toast.error('Senha incorreta');
-    }
-  };
-
-  const handleAdvancedReportClick = () => {
-    if (!showAdvancedReport) {
-      setShowPasswordModal(true);
-    } else {
-      setShowAdvancedReport(false);
-    }
-  };
-
   useEffect(() => {
     loadTransactions();
   }, [dateRange, activeTab]);
@@ -321,7 +300,7 @@ export default function Dashboard() {
             onDateChange={loadTransactions}
           />
           <button
-            onClick={handleAdvancedReportClick}
+            onClick={() => setShowAdvancedReport(!showAdvancedReport)}
             className={`btn-primary py-2 px-4 text-sm flex items-center gap-2 ${
               showAdvancedReport ? 'bg-purple-700' : ''
             }`}
@@ -330,58 +309,6 @@ export default function Dashboard() {
             {showAdvancedReport ? 'Voltar para Transações' : 'Relatório Avançado'}
           </button>
         </div>
-
-        {showPasswordModal && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl max-w-md w-full p-6">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
-                  <Lock className="w-6 h-6 text-purple-600" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900">
-                    Acesso Restrito
-                  </h3>
-                  <p className="text-sm text-gray-600">
-                    Digite a senha para acessar o relatório avançado
-                  </p>
-                </div>
-              </div>
-
-              <form onSubmit={handlePasswordSubmit} className="space-y-4">
-                <div>
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="input-field"
-                    placeholder="Digite a senha"
-                    autoFocus
-                  />
-                </div>
-
-                <div className="flex gap-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowPasswordModal(false);
-                      setPassword('');
-                    }}
-                    className="btn-secondary flex-1"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    className="btn-primary flex-1"
-                  >
-                    Acessar
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
 
         {showAdvancedReport ? (
           <div className="space-y-6">
@@ -678,7 +605,6 @@ export default function Dashboard() {
                     <span>Última compra há mais de 8 dias</span>
                   </div>
                 </div>
-              
               </div>
             </div>
           </div>
@@ -729,6 +655,7 @@ export default function Dashboard() {
                     <tr>
                       <td colSpan={5} className="p-4 text-center text-gray-500">
                         <div className="flex items-center justify-center gap-2">
+                
                           <div className="w-5 h-5 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
                           <span>Carregando...</span>
                         </div>

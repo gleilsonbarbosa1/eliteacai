@@ -8,12 +8,13 @@ import { getCurrentPosition, isWithinStoreRange, getClosestStore, formatDistance
 import { getAvailableBalance, getNextExpiringCashback } from '../../utils/transactions';
 import type { Customer, Transaction, StoreLocation } from '../../types';
 import PromotionsAlert from '../../components/PromotionsAlert';
+import CashbackAnimation from '../../components/CashbackAnimation';
 
 const STORE_CASHBACK_RATE = 0.05; // 5% cashback for in-store purchases
 
 const STORE_LOCATIONS: StoreLocation[] = [
   {
-    id: 'store1',
+    id: '123e4567-e89b-12d3-a456-426614174000', // Store 1 UUID
     name: 'Loja 1: Rua Dois, 2130‑A, Residencial 1 – Cágado',
     latitude: -3.7456789,
     longitude: -38.5678901,
@@ -21,7 +22,7 @@ const STORE_LOCATIONS: StoreLocation[] = [
     address: 'Rua Dois, 2130‑A, Residencial 1 – Cágado'
   },
   {
-    id: 'store2',
+    id: '123e4567-e89b-12d3-a456-426614174001', // Store 2 UUID
     name: 'Loja 2: Rua Um, 1614‑C, Residencial 1 – Cágado',
     latitude: -3.7567890,
     longitude: -38.5789012,
@@ -55,6 +56,8 @@ function ClientDashboard() {
   const [comment, setComment] = useState('');
   const [userLocation, setUserLocation] = useState<GeolocationPosition | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
+  const [showCashbackAnimation, setShowCashbackAnimation] = useState(false);
+  const [lastCashbackAmount, setLastCashbackAmount] = useState(0);
 
   useEffect(() => {
     if (customer) {
@@ -403,7 +406,39 @@ function ClientDashboard() {
         calculateAvailableBalance()
       ]);
 
-      toast.success('Compra registrada com sucesso! Aguarde a aprovação.');
+      // Show success message and cashback animation
+      toast.custom((t) => (
+        <div className={`${
+          t.visible ? 'animate-slide-up' : 'animate-fade-out'
+        } max-w-md w-full bg-white shadow-lg rounded-lg pointer-events-auto flex ring-1 ring-black ring-opacity-5`}>
+          <div className="flex-1 w-0 p-4">
+            <div className="flex items-start">
+              <div className="flex-shrink-0 pt-0.5">
+                <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center">
+                  <CheckCircle2 className="h-6 w-6 text-green-600" />
+                </div>
+              </div>
+              <div className="ml-3 flex-1">
+                <p className="text-sm font-medium text-gray-900">
+                  Compra registrada com sucesso!
+                </p>
+                <p className="mt-1 text-sm text-gray-500">
+                  Você ganhou R$ {cashbackAmount.toFixed(2)} em cashback
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      ), {
+        duration: 4000,
+        position: 'top-right',
+      });
+
+      // Show cashback animation
+      setLastCashbackAmount(cashbackAmount);
+      setShowCashbackAnimation(true);
+      setTimeout(() => setShowCashbackAnimation(false), 3000);
+
     } catch (error: any) {
       console.error('Error:', error);
       toast.error(error.message || 'Erro ao registrar compra');
@@ -1092,6 +1127,13 @@ function ClientDashboard() {
             </div>
           </div>
         </>
+      )}
+
+      {/* Cashback Animation */}
+      {showCashbackAnimation && (
+        <div className="fixed bottom-4 right-4 animate-slide-up">
+          <CashbackAnimation amount={lastCashbackAmount} />
+        </div>
       )}
     </div>
   );

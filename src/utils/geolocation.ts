@@ -41,7 +41,7 @@ export async function getCurrentPosition(): Promise<GeolocationPosition> {
       (position) => {
         clearTimeout(timeoutId);
         // Update test store location with current position
-        const testStore = STORE_LOCATIONS.find(store => store.id === 'store4');
+        const testStore = STORE_LOCATIONS.find(store => store.id === 'store3');
         if (testStore) {
           testStore.latitude = position.coords.latitude;
           testStore.longitude = position.coords.longitude;
