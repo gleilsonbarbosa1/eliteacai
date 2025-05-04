@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, ShoppingBag, Gift, CheckCircle2, XCircle, Users, TrendingUp, Wallet, Clock, AlertTriangle, FileText, Lock } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ShoppingBag, Gift, CheckCircle2, XCircle, Users, TrendingUp, Wallet, Clock, AlertTriangle, FileText, Lock, BarChart3 } from 'lucide-react';
 import DateRangeFilter from '../../components/DateRangeFilter';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
@@ -16,6 +16,8 @@ export default function Dashboard() {
   const [currentTransactions, setCurrentTransactions] = useState([]);
   const [reportData, setReportData] = useState(null);
   const [showAdvancedReport, setShowAdvancedReport] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [password, setPassword] = useState('');
   const [metrics, setMetrics] = useState({
     totalCustomers: 0,
     activeCustomers: 0,
@@ -281,6 +283,25 @@ export default function Dashboard() {
     }
   };
 
+  const handlePasswordSubmit = (e) => {
+    e.preventDefault();
+    if (password === 'Gle0103,,#*') {
+      setShowPasswordModal(false);
+      setShowAdvancedReport(true);
+      setPassword('');
+    } else {
+      toast.error('Senha incorreta');
+    }
+  };
+
+  const handleAdvancedReportClick = () => {
+    if (!showAdvancedReport) {
+      setShowPasswordModal(true);
+    } else {
+      setShowAdvancedReport(false);
+    }
+  };
+
   useEffect(() => {
     loadTransactions();
   }, [dateRange, activeTab]);
@@ -288,7 +309,7 @@ export default function Dashboard() {
   return (
     <div className="p-6">
       <div className="space-y-6">
-        <div className="flex items-center justify-between mb-6">
+        <div className="bg-white rounded-lg shadow p-4 flex items-center justify-between">
           <DateRangeFilter
             dateRange={dateRange}
             setDateRange={setDateRange}
@@ -300,115 +321,189 @@ export default function Dashboard() {
             onDateChange={loadTransactions}
           />
           <button
-            onClick={() => setShowAdvancedReport(!showAdvancedReport)}
-            className="btn-primary py-2 px-4 text-sm flex items-center gap-2"
+            onClick={handleAdvancedReportClick}
+            className={`btn-primary py-2 px-4 text-sm flex items-center gap-2 ${
+              showAdvancedReport ? 'bg-purple-700' : ''
+            }`}
           >
-            <FileText className="w-4 h-4" />
-            {showAdvancedReport ? 'Ocultar Relatório Avançado' : 'Relatório Avançado'}
+            <BarChart3 className="w-4 h-4" />
+            {showAdvancedReport ? 'Voltar para Transações' : 'Relatório Avançado'}
           </button>
         </div>
 
+        {showPasswordModal && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl max-w-md w-full p-6">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
+                  <Lock className="w-6 h-6 text-purple-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    Acesso Restrito
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                    Digite a senha para acessar o relatório avançado
+                  </p>
+                </div>
+              </div>
+
+              <form onSubmit={handlePasswordSubmit} className="space-y-4">
+                <div>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="input-field"
+                    placeholder="Digite a senha"
+                    autoFocus
+                  />
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowPasswordModal(false);
+                      setPassword('');
+                    }}
+                    className="btn-secondary flex-1"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn-primary flex-1"
+                  >
+                    Acessar
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
         {showAdvancedReport ? (
-          <>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {/* Customers Card */}
-              <div className="bg-white rounded-lg shadow p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <Users className="w-5 h-5 text-purple-600" />
-                    <h3 className="font-medium text-gray-900">Clientes</h3>
-                  </div>
-                  <span className="text-2xl font-bold text-gray-900">{metrics.totalCustomers}</span>
-                </div>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600">Ativos</span>
-                    <span className="font-medium text-green-600">{metrics.activeCustomers}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600">Em risco</span>
-                    <span className="font-medium text-yellow-600">{metrics.atRiskCustomers}</span>
-                  </div>
-                </div>
+          <div className="space-y-6">
+            <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+              <div className="p-4 border-b bg-purple-50">
+                <h2 className="text-lg font-semibold text-purple-900 flex items-center gap-2">
+                  <BarChart3 className="w-5 h-5 text-purple-600" />
+                  Métricas Gerais
+                </h2>
               </div>
+              <div className="p-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  <div className="bg-gradient-to-br from-purple-50 to-white rounded-xl shadow-md p-6 border border-purple-100">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2">
+                        <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                          <Users className="w-5 h-5 text-purple-600" />
+                        </div>
+                        <h3 className="font-medium text-gray-900">Clientes</h3>
+                      </div>
+                      <span className="text-2xl font-bold text-gray-900">{metrics.totalCustomers}</span>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-sm">
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 rounded-full bg-green-500" />
+                          <span className="text-gray-600">Ativos</span>
+                        </div>
+                        <span className="font-medium text-green-600">{metrics.activeCustomers}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 rounded-full bg-yellow-500" />
+                          <span className="text-gray-600">Em risco</span>
+                        </div>
+                        <span className="font-medium text-yellow-600">{metrics.atRiskCustomers}</span>
+                      </div>
+                    </div>
+                  </div>
 
-              {/* Revenue Card */}
-              <div className="bg-white rounded-lg shadow p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <TrendingUp className="w-5 h-5 text-purple-600" />
-                    <h3 className="font-medium text-gray-900">Faturamento</h3>
+                  <div className="bg-gradient-to-br from-purple-50 to-white rounded-xl shadow-md p-6 border border-purple-100">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2">
+                        <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                          <TrendingUp className="w-5 h-5 text-purple-600" />
+                        </div>
+                        <h3 className="font-medium text-gray-900">Faturamento</h3>
+                      </div>
+                      <span className="text-2xl font-bold text-gray-900">{formatCurrency(metrics.totalRevenue)}</span>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-600">Ticket Médio</span>
+                        <span className="font-medium text-gray-900">{formatCurrency(metrics.averageTicket)}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-600">Transações</span>
+                        <span className="font-medium text-gray-900">{metrics.totalTransactions}</span>
+                      </div>
+                    </div>
                   </div>
-                  <span className="text-2xl font-bold text-gray-900">{formatCurrency(metrics.totalRevenue)}</span>
-                </div>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600">Ticket Médio</span>
-                    <span className="font-medium text-gray-900">{formatCurrency(metrics.averageTicket)}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600">Transações</span>
-                    <span className="font-medium text-gray-900">{metrics.totalTransactions}</span>
-                  </div>
-                </div>
-              </div>
 
-              {/* Cashback Card */}
-              <div className="bg-white rounded-lg shadow p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <Wallet className="w-5 h-5 text-purple-600" />
-                    <h3 className="font-medium text-gray-900">Cashback</h3>
+                  <div className="bg-gradient-to-br from-purple-50 to-white rounded-xl shadow-md p-6 border border-purple-100">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2">
+                        <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                          <Wallet className="w-5 h-5 text-purple-600" />
+                        </div>
+                        <h3 className="font-medium text-gray-900">Cashback</h3>
+                      </div>
+                      <span className="text-2xl font-bold text-gray-900">{formatCurrency(metrics.totalCashback)}</span>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-600">Taxa de Resgate</span>
+                        <span className="font-medium text-gray-900">{metrics.redemptionRate.toFixed(1)}%</span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-600">Média por Cliente</span>
+                        <span className="font-medium text-gray-900">
+                          {formatCurrency(metrics.totalCustomers > 0 ? metrics.totalCashback / metrics.totalCustomers : 0)}
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                  <span className="text-2xl font-bold text-gray-900">{formatCurrency(metrics.totalCashback)}</span>
-                </div>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600">Taxa de Resgate</span>
-                    <span className="font-medium text-gray-900">{metrics.redemptionRate.toFixed(1)}%</span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600">Média por Cliente</span>
-                    <span className="font-medium text-gray-900">
-                      {formatCurrency(metrics.totalCustomers > 0 ? metrics.totalCashback / metrics.totalCustomers : 0)}
-                    </span>
-                  </div>
-                </div>
-              </div>
 
-              {/* At Risk Card */}
-              <div className="bg-white rounded-lg shadow p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <AlertTriangle className="w-5 h-5 text-purple-600" />
-                    <h3 className="font-medium text-gray-900">Alertas</h3>
-                  </div>
-                  <span className="text-2xl font-bold text-yellow-600">{metrics.atRiskCustomers}</span>
-                </div>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600">Clientes em Risco</span>
-                    <span className="font-medium text-yellow-600">{metrics.atRiskCustomers}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600">Taxa de Risco</span>
-                    <span className="font-medium text-yellow-600">
-                      {metrics.totalCustomers > 0 ? ((metrics.atRiskCustomers / metrics.totalCustomers) * 100).toFixed(1) : 0}%
-                    </span>
+                  <div className="bg-gradient-to-br from-purple-50 to-white rounded-xl shadow-md p-6 border border-purple-100">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2">
+                        <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                          <AlertTriangle className="w-5 h-5 text-purple-600" />
+                        </div>
+                        <h3 className="font-medium text-gray-900">Alertas</h3>
+                      </div>
+                      <span className="text-2xl font-bold text-yellow-600">{metrics.atRiskCustomers}</span>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-600">Clientes em Risco</span>
+                        <span className="font-medium text-yellow-600">{metrics.atRiskCustomers}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-600">Taxa de Risco</span>
+                        <span className="font-medium text-yellow-600">
+                          {metrics.totalCustomers > 0 ? ((metrics.atRiskCustomers / metrics.totalCustomers) * 100).toFixed(1) : 0}%
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="bg-white rounded-lg shadow overflow-hidden">
-              <div className="p-4 border-b flex items-center justify-between">
-                <h2 className="text-lg font-medium text-gray-900 flex items-center gap-2">
+            <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+              <div className="p-4 border-b bg-purple-50 flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-purple-900 flex items-center gap-2">
                   <FileText className="w-5 h-5 text-purple-600" />
                   Perfil de Compra dos Clientes
                 </h2>
                 <button
                   onClick={handleGeneratePDF}
-                  className="btn-secondary py-2 px-4 text-sm flex items-center gap-2"
+                  className="btn-secondary py-2 px-4 text-sm flex items-center gap-2 bg-white"
                 >
                   <FileText className="w-4 h-4" />
                   Exportar PDF
@@ -443,7 +538,7 @@ export default function Dashboard() {
                           : 0;
 
                         return (
-                          <tr key={customer.id} className="border-b hover:bg-gray-50">
+                          <tr key={customer.id} className="border-b hover:bg-purple-50/50 transition-colors">
                             <td className="p-4">
                               <div className="font-medium text-gray-900">
                                 {customer.name || 'Não informado'}
@@ -485,9 +580,10 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <div className="bg-white rounded-lg shadow overflow-hidden">
-              <div className="p-4 border-b">
-                <h2 className="text-lg font-medium text-gray-900">
+            <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+              <div className="p-4 border-b bg-purple-50">
+                <h2 className="text-lg font-semibold text-purple-900 flex items-center gap-2">
+                  <Users className="w-5 h-5 text-purple-600" />
                   Clientes Ativos
                 </h2>
               </div>
@@ -517,11 +613,22 @@ export default function Dashboard() {
                         const metrics = reportData.customerMetrics.get(customer.id);
                         if (!metrics) return null;
 
+                        const daysSinceLastPurchase = metrics.lastPurchase
+                          ? Math.floor((new Date().getTime() - new Date(metrics.lastPurchase).getTime()) / (1000 * 60 * 60 * 24))
+                          : null;
+
                         return (
-                          <tr key={customer.id} className="border-b">
+                          <tr key={customer.id} className="border-b hover:bg-purple-50/50 transition-colors">
                             <td className="p-4">
-                              <div className="flex items-center">
-                                {getStatusIndicator(metrics.status)}
+                              <div className="flex items-center gap-2">
+                                {daysSinceLastPurchase === null ? '🔴' : 
+                                 daysSinceLastPurchase <= 3 ? '🟢' :
+                                 daysSinceLastPurchase <= 7 ? '🟡' : '🔴'}
+                                <span className="text-sm text-gray-600">
+                                  {daysSinceLastPurchase === null ? 'Inativo' :
+                                   daysSinceLastPurchase <= 3 ? 'Ativo' :
+                                   daysSinceLastPurchase <= 7 ? 'Em risco' : 'Inativo'}
+                                </span>
                               </div>
                             </td>
                             <td className="p-4">
@@ -555,14 +662,34 @@ export default function Dashboard() {
                   </tbody>
                 </table>
               </div>
+
+              <div className="p-4 bg-gray-50 border-t">
+                <div className="flex items-center gap-6 text-sm text-gray-600">
+                  <div className="flex items-center gap-2">
+                    <span>🟢</span>
+                    <span>Última compra em até 3 dias</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span>🟡</span>
+                    <span>Última compra entre 4 e 7 dias</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span>🔴</span>
+                    <span>Última compra há mais de 8 dias</span>
+                  </div>
+                </div>
+              
+              </div>
             </div>
-          </>
+          </div>
         ) : (
-          <div className="bg-white rounded-lg shadow overflow-hidden">
-            <div className="flex border-b">
+          <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+            <div className="flex border-b bg-purple-50">
               <button
-                className={`flex-1 px-4 py-3 text-sm font-medium ${
-                  activeTab === 'purchases' ? 'text-purple-600 border-b-2 border-purple-600' : 'text-gray-500'
+                className={`flex-1 px-6 py-4 text-sm font-medium transition-colors ${
+                  activeTab === 'purchases' 
+                    ? 'text-purple-900 border-b-2 border-purple-600 bg-white' 
+                    : 'text-gray-600 hover:text-purple-600'
                 }`}
                 onClick={() => setActiveTab('purchases')}
               >
@@ -572,8 +699,10 @@ export default function Dashboard() {
                 </div>
               </button>
               <button
-                className={`flex-1 px-4 py-3 text-sm font-medium ${
-                  activeTab === 'redemptions' ? 'text-purple-600 border-b-2 border-purple-600' : 'text-gray-500'
+                className={`flex-1 px-6 py-4 text-sm font-medium transition-colors ${
+                  activeTab === 'redemptions' 
+                    ? 'text-purple-900 border-b-2 border-purple-600 bg-white' 
+                    : 'text-gray-600 hover:text-purple-600'
                 }`}
                 onClick={() => setActiveTab('redemptions')}
               >
@@ -599,7 +728,10 @@ export default function Dashboard() {
                   {loading ? (
                     <tr>
                       <td colSpan={5} className="p-4 text-center text-gray-500">
-                        Carregando...
+                        <div className="flex items-center justify-center gap-2">
+                          <div className="w-5 h-5 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
+                          <span>Carregando...</span>
+                        </div>
                       </td>
                     </tr>
                   ) : currentTransactions.length === 0 ? (
@@ -612,18 +744,42 @@ export default function Dashboard() {
                     currentTransactions
                       .filter(t => activeTab === 'purchases' ? t.type === 'purchase' : t.type === 'redemption')
                       .map((transaction) => (
-                        <tr key={transaction.id} className="border-b">
+                        <tr key={transaction.id} className="border-b hover:bg-purple-50/50 transition-colors">
                           <td className="p-4">
                             {formatDateTime(transaction.created_at)}
                           </td>
                           <td className="p-4">
-                            {transaction.customers?.name || transaction.customers?.phone || 'N/A'}
+                            <div className="font-medium text-gray-900">
+                              {transaction.customers?.name || 'Não informado'}
+                            </div>
+                            <div className="text-sm text-gray-500">
+                              {transaction.customers?.phone || 'N/A'}
+                            </div>
                           </td>
                           <td className="p-4">
-                            {formatCurrency(transaction.amount)}
+                            <div className="font-medium text-gray-900">
+                              {formatCurrency(transaction.amount)}
+                            </div>
+                            {transaction.type === 'purchase' && (
+                              <div className="text-sm text-purple-600">
+                                + {formatCurrency(transaction.cashback_amount)} cashback
+                              </div>
+                            )}
                           </td>
                           <td className="p-4">
-                            <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusBadgeClass(transaction.status)}`}>
+                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-sm font-medium ${
+                              transaction.status === 'approved'
+                                ? 'bg-green-50 text-green-700 border border-green-200'
+                                : transaction.status === 'rejected'
+                                ? 'bg-red-50 text-red-700 border border-red-200'
+                                : 'bg-yellow-50 text-yellow-700 border border-yellow-200'
+                            }`}>
+                              {transaction.status === 'approved' 
+                                ? <CheckCircle2 className="w-4 h-4" /> 
+                                : transaction.status === 'rejected'
+                                ? <XCircle className="w-4 h-4" />
+                                : <Clock className="w-4 h-4" />
+                              }
                               {transaction.status === 'approved' ? 'Aprovado' :
                                transaction.status === 'rejected' ? 'Rejeitado' : 'Pendente'}
                             </span>
@@ -633,13 +789,15 @@ export default function Dashboard() {
                               <div className="flex gap-2">
                                 <button
                                   onClick={() => handleStatusChange(transaction.id, 'approved')}
-                                  className="text-green-600 hover:text-green-700"
+                                  className="p-1.5 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg transition-colors"
+                                  title="Aprovar"
                                 >
                                   <CheckCircle2 className="w-5 h-5" />
                                 </button>
                                 <button
                                   onClick={() => handleStatusChange(transaction.id, 'rejected')}
-                                  className="text-red-600 hover:text-red-700"
+                                  className="p-1.5 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                                  title="Rejeitar"
                                 >
                                   <XCircle className="w-5 h-5" />
                                 </button>
@@ -659,7 +817,7 @@ export default function Dashboard() {
                   <button
                     onClick={handlePreviousPage}
                     disabled={currentPage === 1}
-                    className="p-2 text-gray-600 hover:text-gray-900 disabled:opacity-50"
+                    className="p-2 text-gray-600 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg hover:bg-gray-100 transition-colors"
                   >
                     <ChevronLeft className="w-5 h-5" />
                   </button>
@@ -669,7 +827,7 @@ export default function Dashboard() {
                   <button
                     onClick={handleNextPage}
                     disabled={currentPage === totalPages}
-                    className="p-2 text-gray-600 hover:text-gray-900 disabled:opacity-50"
+                    className="p-2 text-gray-600 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg hover:bg-gray-100 transition-colors"
                   >
                     <ChevronRight className="w-5 h-5" />
                   </button>
