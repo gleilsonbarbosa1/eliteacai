@@ -40,8 +40,8 @@ function calculateCustomerMetrics(transactions: Transaction[]): CustomerMetrics 
   transactions.forEach(t => {
     if (t.type === 'purchase' && t.status === 'approved') {
       metrics.totalPurchases++;
-      metrics.totalSpent += t.amount;
-      metrics.totalCashback += t.cashback_amount;
+      metrics.totalSpent += Number(t.amount);
+      metrics.totalCashback += Number(t.cashback_amount);
 
       const purchaseDate = new Date(t.created_at);
       if (!metrics.lastPurchase || purchaseDate > metrics.lastPurchase) {
@@ -49,10 +49,10 @@ function calculateCustomerMetrics(transactions: Transaction[]): CustomerMetrics 
       }
 
       if (t.expires_at && new Date(t.expires_at) < new Date()) {
-        metrics.expiredCashback += t.cashback_amount;
+        metrics.expiredCashback += Number(t.cashback_amount);
       }
     } else if (t.type === 'redemption' && t.status === 'approved') {
-      metrics.redeemedCashback += t.amount;
+      metrics.redeemedCashback += Number(t.amount);
     }
   });
 
@@ -60,6 +60,13 @@ function calculateCustomerMetrics(transactions: Transaction[]): CustomerMetrics 
     metrics.totalSpent / metrics.totalPurchases : 0;
 
   return metrics;
+}
+
+function getStatusIndicator(daysSinceLastPurchase: number | null): string {
+  if (daysSinceLastPurchase === null) return '🔴';
+  if (daysSinceLastPurchase <= 3) return '🟢';
+  if (daysSinceLastPurchase <= 7) return '🟡';
+  return '🔴';
 }
 
 export const generateCustomerReport = async (
@@ -71,6 +78,23 @@ export const generateCustomerReport = async (
   const doc = new jsPDF();
   const now = new Date();
 
+  // Format currency
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    }).format(value);
+  };
+
+  // Format date
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
+  };
+
   // Helper function to add page header
   const addPageHeader = (title: string) => {
     doc.setFontSize(20);
@@ -80,8 +104,8 @@ export const generateCustomerReport = async (
     // Add date range and generation time
     doc.setFontSize(10);
     doc.setTextColor(100);
-    doc.text(`Período: ${dateRange.startDate.toLocaleDateString('pt-BR')} até ${dateRange.endDate.toLocaleDateString('pt-BR')}`, 14, 30);
-    doc.text(`Gerado em: ${now.toLocaleDateString('pt-BR')} às ${now.toLocaleTimeString('pt-BR')}`, 14, 35);
+    doc.text(`Período: ${formatDate(dateRange.startDate)} até ${formatDate(dateRange.endDate)}`, 14, 30);
+    doc.text(`Gerado em: ${formatDate(now)} às ${now.toLocaleTimeString('pt-BR')}`, 14, 35);
   };
 
   switch (section) {
@@ -149,9 +173,7 @@ function generateLifecycleReport(doc: jsPDF, customers: Customer[], dateRange: D
       null;
 
     return [
-      daysSinceLastPurchase === null ? '🔴' : 
-      daysSinceLastPurchase <= 7 ? '🟢' : 
-      daysSinceLastPurchase <= 15 ? '🟡' : '🔴',
+      getStatusIndicator(daysSinceLastPurchase),
       customer.name || 'Não informado',
       metrics.lastPurchase ? metrics.lastPurchase.toLocaleDateString('pt-BR') : 'Nunca',
       daysSinceLastPurchase !== null ? `${daysSinceLastPurchase} dias` : 'N/A',
@@ -175,9 +197,9 @@ function generateLifecycleReport(doc: jsPDF, customers: Customer[], dateRange: D
   const legendY = doc.autoTable.previous.finalY + 10;
   doc.setFontSize(10);
   doc.setTextColor(100);
-  doc.text('🟢 Verde: Clientes ativos (última compra em até 7 dias)', 14, legendY);
-  doc.text('🟡 Amarelo: Clientes em risco (8 a 15 dias desde a última compra)', 14, legendY + 5);
-  doc.text('🔴 Vermelho: Clientes inativos (mais de 15 dias desde a última compra)', 14, legendY + 10);
+  doc.text('🟢 Verde: Última compra em até 3 dias', 14, legendY);
+  doc.text('🟡 Amarelo: Última compra entre 4 e 7 dias', 14, legendY + 5);
+  doc.text('🔴 Vermelho: Última compra há mais de 8 dias', 14, legendY + 10);
 }
 
 function generateActiveReport(doc: jsPDF, customers: Customer[], dateRange: DateRange) {
@@ -206,9 +228,7 @@ function generateActiveReport(doc: jsPDF, customers: Customer[], dateRange: Date
       return b.metrics.lastPurchase.getTime() - a.metrics.lastPurchase.getTime();
     })
     .map(({ customer, metrics, daysSinceLastPurchase }) => [
-      daysSinceLastPurchase === null ? '🔴' : 
-      daysSinceLastPurchase <= 7 ? '🟢' : 
-      daysSinceLastPurchase <= 15 ? '🟡' : '🔴',
+      getStatusIndicator(daysSinceLastPurchase),
       customer.name || 'Não informado',
       customer.phone.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3'),
       daysSinceLastPurchase !== null ? `${daysSinceLastPurchase} dias` : 'N/A',
@@ -225,4 +245,12 @@ function generateActiveReport(doc: jsPDF, customers: Customer[], dateRange: Date
       fontStyle: 'bold'
     }
   });
+
+  // Add legend
+  const legendY = doc.autoTable.previous.finalY + 10;
+  doc.setFontSize(10);
+  doc.setTextColor(100);
+  doc.text('🟢 Verde: Última compra em até 3 dias', 14, legendY);
+  doc.text('🟡 Amarelo: Última compra entre 4 e 7 dias', 14, legendY + 5);
+  doc.text('🔴 Vermelho: Última compra há mais de 8 dias', 14, legendY + 10);
 }

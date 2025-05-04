@@ -92,8 +92,8 @@ export const STORE_LOCATIONS: StoreLocation[] = [
   {
     id: 'store3',
     name: 'Elite Açaí (Teste)',
-    latitude: -3.8633379,
-    longitude: -38.6319105,
+    latitude: -3.863115098058069,
+    longitude: -38.631793933498614,
     radius: 40, // 40 meters radius
     address: 'Loja de Teste'
   }

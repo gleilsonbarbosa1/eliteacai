@@ -16,13 +16,17 @@ const STORE_LOCATIONS: StoreLocation[] = [
     id: 'store1',
     name: 'Loja 1: Rua Dois, 2130‑A, Residencial 1 – Cágado',
     latitude: -3.7456789,
-    longitude: -38.5678901
+    longitude: -38.5678901,
+    radius: 40,
+    address: 'Rua Dois, 2130‑A, Residencial 1 – Cágado'
   },
   {
     id: 'store2',
     name: 'Loja 2: Rua Um, 1614‑C, Residencial 1 – Cágado',
     latitude: -3.7567890,
-    longitude: -38.5789012
+    longitude: -38.5789012,
+    radius: 40,
+    address: 'Rua Um, 1614‑C, Residencial 1 – Cágado'
   }
 ];
 
@@ -49,14 +53,53 @@ function ClientDashboard() {
   const [isTopCustomer, setIsTopCustomer] = useState(false);
   const [topCustomerRank, setTopCustomerRank] = useState<number | null>(null);
   const [comment, setComment] = useState('');
+  const [userLocation, setUserLocation] = useState<GeolocationPosition | null>(null);
+  const [locationError, setLocationError] = useState<string | null>(null);
 
   useEffect(() => {
     if (customer) {
       loadTransactions();
       calculateAvailableBalance();
       checkTopCustomerStatus();
+      checkLocationAndSetStore();
     }
   }, [customer?.id]);
+
+  const checkLocationAndSetStore = async () => {
+    try {
+      const position = await getCurrentPosition();
+      setUserLocation(position);
+      setLocationError(null);
+
+      const { latitude, longitude } = position.coords;
+      
+      if (isWithinStoreRange(latitude, longitude)) {
+        const closestStore = getClosestStore(latitude, longitude);
+        if (closestStore) {
+          setSelectedStore(closestStore);
+          toast.success(`Localização detectada: ${closestStore.name}`);
+        }
+      } else {
+        const closestStore = getClosestStore(latitude, longitude);
+        if (closestStore) {
+          const distanceText = formatDistance(closestStore.distance || 0);
+          toast.error(
+            <div className="flex flex-col gap-2">
+              <p>Você precisa estar em uma loja Elite Açaí para registrar compras.</p>
+              <p className="flex items-center gap-2 text-sm">
+                <MapPin className="w-4 h-4" />
+                Loja mais próxima: {closestStore.name} ({distanceText})
+              </p>
+            </div>
+          );
+        }
+      }
+    } catch (error: any) {
+      console.error('Error getting location:', error);
+      setLocationError(error.message);
+      toast.error(error.message);
+    }
+  };
 
   const calculateAvailableBalance = async () => {
     if (!customer?.id) return;
@@ -283,7 +326,12 @@ function ClientDashboard() {
 
   const addTransaction = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!customer || !selectedStore) {
+    if (!customer) {
+      toast.error('Por favor, faça login primeiro');
+      return;
+    }
+
+    if (!selectedStore) {
       toast.error('Por favor, selecione uma loja');
       return;
     }
@@ -775,7 +823,7 @@ function ClientDashboard() {
                 <form onSubmit={addTransaction} className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Selecione a Loja
+                      Loja
                     </label>
                     <select
                       value={selectedStore?.id || ''}
@@ -788,11 +836,20 @@ function ClientDashboard() {
                     >
                       <option value="">Selecione uma loja</option>
                       {STORE_LOCATIONS.map(store => (
-                        <option key={store.id} value={store.id}>
+                        <option 
+                          key={store.id} 
+                          value={store.id}
+                        >
                           {store.name}
                         </option>
                       ))}
                     </select>
+                    {locationError && (
+                      <p className="mt-2 text-sm text-red-600 flex items-center gap-1">
+                        <AlertCircle className="w-4 h-4" />
+                        {locationError}
+                      </p>
+                    )}
                   </div>
 
                   <div>
