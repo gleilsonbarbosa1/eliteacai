@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, ShoppingBag, Gift, CheckCircle2, XCircle, Users, TrendingUp, Wallet, Clock, AlertTriangle, FileText, Lock, BarChart3 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ShoppingBag, Gift, CheckCircle2, XCircle, Users, TrendingUp, Wallet, Clock, AlertTriangle, FileText, Lock, BarChart3, X } from 'lucide-react';
 import DateRangeFilter from '../../components/DateRangeFilter';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
@@ -16,6 +16,8 @@ export default function Dashboard() {
   const [currentTransactions, setCurrentTransactions] = useState([]);
   const [reportData, setReportData] = useState(null);
   const [showAdvancedReport, setShowAdvancedReport] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [password, setPassword] = useState('');
   const [metrics, setMetrics] = useState({
     totalCustomers: 0,
     activeCustomers: 0,
@@ -26,6 +28,17 @@ export default function Dashboard() {
     redemptionRate: 0,
     atRiskCustomers: 0
   });
+
+  const handlePasswordSubmit = (e) => {
+    e.preventDefault();
+    if (password === 'Gle0103,,#*') {
+      setShowPasswordModal(false);
+      setShowAdvancedReport(true);
+      setPassword('');
+    } else {
+      toast.error('Senha incorreta');
+    }
+  };
 
   const loadTransactions = async () => {
     try {
@@ -300,15 +313,70 @@ export default function Dashboard() {
             onDateChange={loadTransactions}
           />
           <button
-            onClick={() => setShowAdvancedReport(!showAdvancedReport)}
+            onClick={() => setShowPasswordModal(true)}
             className={`btn-primary py-2 px-4 text-sm flex items-center gap-2 ${
               showAdvancedReport ? 'bg-purple-700' : ''
             }`}
           >
             <BarChart3 className="w-4 h-4" />
-            {showAdvancedReport ? 'Voltar para Transações' : 'Relatório Avançado'}
+            Relatório Avançado
           </button>
         </div>
+
+        {showPasswordModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                  <Lock className="w-5 h-5 text-purple-600" />
+                  Acesso Restrito
+                </h3>
+                <button
+                  onClick={() => {
+                    setShowPasswordModal(false);
+                    setPassword('');
+                  }}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <form onSubmit={handlePasswordSubmit}>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Senha
+                  </label>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                    placeholder="Digite a senha"
+                    required
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="submit"
+                    className="btn-primary flex-1 py-2"
+                  >
+                    Acessar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowPasswordModal(false);
+                      setPassword('');
+                    }}
+                    className="btn-secondary flex-1 py-2"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
 
         {showAdvancedReport ? (
           <div className="space-y-6">
@@ -608,6 +676,7 @@ export default function Dashboard() {
               </div>
             </div>
           </div>
+        
         ) : (
           <div className="bg-white rounded-lg shadow-lg overflow-hidden">
             <div className="flex border-b bg-purple-50">
@@ -655,7 +724,6 @@ export default function Dashboard() {
                     <tr>
                       <td colSpan={5} className="p-4 text-center text-gray-500">
                         <div className="flex items-center justify-center gap-2">
-                
                           <div className="w-5 h-5 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
                           <span>Carregando...</span>
                         </div>

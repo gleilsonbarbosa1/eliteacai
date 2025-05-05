@@ -1,5 +1,5 @@
 import { Outlet, useNavigate, Navigate } from 'react-router-dom';
-import { CreditCard, LogOut, User } from 'lucide-react';
+import { CreditCard, LogOut, User, ExternalLink } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import type { Admin } from '../types';
@@ -116,6 +116,15 @@ export default function AdminLayout() {
               Área Administrativa
             </h1>
             <div className="flex items-center gap-4">
+              <a
+                href="https://phenomenal-pastelito-aa1baf.netlify.app/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm btn-secondary !py-1.5 !px-3 flex items-center gap-1.5 bg-green-500 text-white border-green-600 hover:bg-green-600"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                Sistema de Pedidos
+              </a>
               <div className="flex items-center gap-2 text-gray-600">
                 <User className="w-4 h-4" />
                 <span className="text-sm font-medium">{adminData.email}</span>
