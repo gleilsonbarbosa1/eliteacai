@@ -5,9 +5,15 @@ import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 
 export default function AdminLogin() {
-  const [loginForm, setLoginForm] = useState({ 
-    email: '', 
-    password: '' 
+  const [loginForm, setLoginForm] = useState(() => {
+    const savedData = localStorage.getItem('adminLoginData');
+    return savedData ? JSON.parse(savedData) : { 
+      email: '', 
+      password: '' 
+    };
+  });
+  const [rememberMe, setRememberMe] = useState(() => {
+    return localStorage.getItem('adminRememberMe') === 'true';
   });
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -18,6 +24,14 @@ export default function AdminLogin() {
 
     try {
       setLoading(true);
+
+      if (rememberMe) {
+        localStorage.setItem('adminLoginData', JSON.stringify(loginForm));
+        localStorage.setItem('adminRememberMe', 'true');
+      } else {
+        localStorage.removeItem('adminLoginData');
+        localStorage.removeItem('adminRememberMe');
+      }
 
       const { data: { session }, error: signInError } = await supabase.auth.signInWithPassword({
         email: loginForm.email,
@@ -90,6 +104,18 @@ export default function AdminLogin() {
               required
               disabled={loading}
             />
+          </div>
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="rememberMe"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+              className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+            />
+            <label htmlFor="rememberMe" className="ml-2 block text-sm text-gray-700">
+              Lembrar dados
+            </label>
           </div>
           <button
             type="submit"

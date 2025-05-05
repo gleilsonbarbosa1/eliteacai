@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, ShoppingBag, Gift, CheckCircle2, XCircle, Users, TrendingUp, Wallet, Clock, AlertTriangle, FileText, Lock, BarChart3, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ShoppingBag, Gift, CheckCircle2, XCircle, Users, TrendingUp, Wallet, Clock, AlertTriangle, FileText, Lock, BarChart3, X, MapPin, UserCircle } from 'lucide-react';
 import DateRangeFilter from '../../components/DateRangeFilter';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
@@ -18,6 +18,7 @@ export default function Dashboard() {
   const [showAdvancedReport, setShowAdvancedReport] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [password, setPassword] = useState('');
+  const [adminEmail, setAdminEmail] = useState('');
   const [metrics, setMetrics] = useState({
     totalCustomers: 0,
     activeCustomers: 0,
@@ -29,16 +30,15 @@ export default function Dashboard() {
     atRiskCustomers: 0
   });
 
-  const handlePasswordSubmit = (e) => {
-    e.preventDefault();
-    if (password === 'Gle0103,,#*') {
-      setShowPasswordModal(false);
-      setShowAdvancedReport(true);
-      setPassword('');
-    } else {
-      toast.error('Senha incorreta');
-    }
-  };
+  useEffect(() => {
+    const getAdminEmail = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setAdminEmail(user.email);
+      }
+    };
+    getAdminEmail();
+  }, []);
 
   const loadTransactions = async () => {
     try {
@@ -84,7 +84,6 @@ export default function Dashboard() {
           break;
       }
 
-      // Load transactions
       const { data: transactions, error: transactionsError } = await supabase
         .from('transactions')
         .select(`
@@ -94,6 +93,11 @@ export default function Dashboard() {
             name,
             phone,
             balance
+          ),
+          stores (
+            id,
+            name,
+            code
           )
         `)
         .gte('created_at', startDate.toISOString())
@@ -102,14 +106,14 @@ export default function Dashboard() {
 
       if (transactionsError) throw transactionsError;
 
-      // Load all customers for the period
-      const { data: customers, error: customersError } = await supabase
-        .from('customers')
-        .select('*');
+      if (!transactions) {
+        setCurrentTransactions([]);
+        return;
+      }
 
-      if (customersError) throw customersError;
+      setCurrentTransactions(transactions);
+      setTotalPages(Math.ceil(transactions.length / 10));
 
-      // Calculate metrics
       const approvedPurchases = transactions.filter(t => t.type === 'purchase' && t.status === 'approved');
       const approvedRedemptions = transactions.filter(t => t.type === 'redemption' && t.status === 'approved');
 
@@ -117,7 +121,12 @@ export default function Dashboard() {
       const totalCashback = approvedPurchases.reduce((sum, t) => sum + Number(t.cashback_amount), 0);
       const totalRedemptions = approvedRedemptions.reduce((sum, t) => sum + Number(t.amount), 0);
 
-      // Calculate customer metrics
+      const { data: customers, error: customersError } = await supabase
+        .from('customers')
+        .select('*');
+
+      if (customersError) throw customersError;
+
       const customerMetrics = new Map();
       
       customers.forEach(customer => {
@@ -134,7 +143,6 @@ export default function Dashboard() {
           status: 'inactive'
         };
 
-        // Determine customer status
         if (metrics.lastPurchase) {
           const daysSinceLastPurchase = Math.floor(
             (new Date() - new Date(metrics.lastPurchase)) / (1000 * 60 * 60 * 24)
@@ -150,7 +158,6 @@ export default function Dashboard() {
         customerMetrics.set(customer.id, metrics);
       });
 
-      // Calculate overall metrics
       const activeCustomers = Array.from(customerMetrics.values()).filter(m => m.status === 'active').length;
       const atRiskCustomers = Array.from(customerMetrics.values()).filter(m => m.status === 'at_risk').length;
       const averageTicket = approvedPurchases.length > 0 ? totalRevenue / approvedPurchases.length : 0;
@@ -175,9 +182,6 @@ export default function Dashboard() {
         )
       });
 
-      setCurrentTransactions(transactions);
-      setTotalPages(Math.ceil(transactions.length / 10));
-
     } catch (error) {
       console.error('Error loading transactions:', error);
       toast.error('Erro ao carregar transações: ' + error.message);
@@ -190,7 +194,10 @@ export default function Dashboard() {
     try {
       const { error } = await supabase
         .from('transactions')
-        .update({ status: newStatus })
+        .update({ 
+          status: newStatus,
+          attendant_name: adminEmail
+        })
         .eq('id', transactionId);
 
       if (error) throw error;
@@ -200,6 +207,17 @@ export default function Dashboard() {
     } catch (error) {
       console.error('Error updating status:', error);
       toast.error('Erro ao atualizar status: ' + error.message);
+    }
+  };
+
+  const handlePasswordSubmit = (e) => {
+    e.preventDefault();
+    if (password === 'Gle0103,,#*') {
+      setShowPasswordModal(false);
+      setShowAdvancedReport(true);
+      setPassword('');
+    } else {
+      toast.error('Senha incorreta');
     }
   };
 
@@ -230,36 +248,6 @@ export default function Dashboard() {
       style: 'currency',
       currency: 'BRL'
     }).format(value);
-  };
-
-  const getStatusBadgeClass = (status) => {
-    switch (status) {
-      case 'approved':
-        return 'bg-green-50 text-green-700 border border-green-200';
-      case 'pending':
-        return 'bg-yellow-50 text-yellow-700 border border-yellow-200';
-      case 'rejected':
-        return 'bg-red-50 text-red-700 border border-red-200';
-      default:
-        return 'bg-gray-50 text-gray-700 border border-gray-200';
-    }
-  };
-
-  const getStatusIndicator = (status) => {
-    switch (status) {
-      case 'active':
-        return (
-          <div className="w-3 h-3 rounded-full bg-green-500" title="Cliente ativo" />
-        );
-      case 'at_risk':
-        return (
-          <div className="w-3 h-3 rounded-full bg-yellow-500" title="Em risco" />
-        );
-      default:
-        return (
-          <div className="w-3 h-3 rounded-full bg-red-500" title="Inativo" />
-        );
-    }
   };
 
   const getLastActivity = (customer, metrics) => {
@@ -676,7 +664,6 @@ export default function Dashboard() {
               </div>
             </div>
           </div>
-        
         ) : (
           <div className="bg-white rounded-lg shadow-lg overflow-hidden">
             <div className="flex border-b bg-purple-50">
@@ -690,7 +677,8 @@ export default function Dashboard() {
               >
                 <div className="flex items-center justify-center gap-2">
                   <ShoppingBag className="w-4 h-4" />
-                  Compras
+                  Comp
+                  ras
                 </div>
               </button>
               <button
@@ -714,6 +702,8 @@ export default function Dashboard() {
                   <tr className="text-left border-b bg-gray-50">
                     <th className="p-4 text-sm font-medium text-gray-500">Data</th>
                     <th className="p-4 text-sm font-medium text-gray-500">Cliente</th>
+                    <th className="p-4 text-sm font-medium text-gray-500">Loja</th>
+                    <th className="p-4 text-sm font-medium text-gray-500">Atendente</th>
                     <th className="p-4 text-sm font-medium text-gray-500">Valor</th>
                     <th className="p-4 text-sm font-medium text-gray-500">Status</th>
                     <th className="p-4 text-sm font-medium text-gray-500">Ações</th>
@@ -722,7 +712,7 @@ export default function Dashboard() {
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={5} className="p-4 text-center text-gray-500">
+                      <td colSpan={7} className="p-4 text-center text-gray-500">
                         <div className="flex items-center justify-center gap-2">
                           <div className="w-5 h-5 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
                           <span>Carregando...</span>
@@ -731,7 +721,7 @@ export default function Dashboard() {
                     </tr>
                   ) : currentTransactions.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="p-4 text-center text-gray-500">
+                      <td colSpan={7} className="p-4 text-center text-gray-500">
                         Nenhuma transação encontrada
                       </td>
                     </tr>
@@ -749,6 +739,22 @@ export default function Dashboard() {
                             </div>
                             <div className="text-sm text-gray-500">
                               {transaction.customers?.phone || 'N/A'}
+                            </div>
+                          </td>
+                          <td className="p-4">
+                            <div className="flex items-center gap-2">
+                              <MapPin className="w-4 h-4 text-gray-400" />
+                              <div className="text-gray-600">
+                                {transaction.stores?.name || 'Loja não informada'}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="p-4">
+                            <div className="flex items-center gap-2">
+                              <UserCircle className="w-4 h-4 text-gray-400" />
+                              <div className="text-gray-600">
+                                {transaction.attendant_name || 'Não informado'}
+                              </div>
                             </div>
                           </td>
                           <td className="p-4">

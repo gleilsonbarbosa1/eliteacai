@@ -33,13 +33,28 @@ const STORE_LOCATIONS: StoreLocation[] = [
 
 function ClientDashboard() {
   const [customer, setCustomer] = useState<Customer | null>(null);
-  const [email, setEmail] = useState('');
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [dateOfBirth, setDateOfBirth] = useState('');
+  const [email, setEmail] = useState(() => {
+    const savedData = localStorage.getItem('clientLoginData');
+    return savedData ? JSON.parse(savedData).email : '';
+  });
+  const [name, setName] = useState(() => {
+    const savedData = localStorage.getItem('clientLoginData');
+    return savedData ? JSON.parse(savedData).name : '';
+  });
+  const [phone, setPhone] = useState(() => {
+    const savedData = localStorage.getItem('clientLoginData');
+    return savedData ? JSON.parse(savedData).phone : '';
+  });
+  const [dateOfBirth, setDateOfBirth] = useState(() => {
+    const savedData = localStorage.getItem('clientLoginData');
+    return savedData ? JSON.parse(savedData).dateOfBirth : '';
+  });
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLogin, setIsLogin] = useState(true);
+  const [rememberMe, setRememberMe] = useState(() => {
+    return localStorage.getItem('clientRememberMe') === 'true';
+  });
   const [transactionAmount, setTransactionAmount] = useState('');
   const [selectedStore, setSelectedStore] = useState<StoreLocation | null>(null);
   const [showRedemptionForm, setShowRedemptionForm] = useState(false);
@@ -213,6 +228,19 @@ function ClientDashboard() {
     setLoading(true);
 
     try {
+      if (rememberMe) {
+        localStorage.setItem('clientLoginData', JSON.stringify({
+          email,
+          name,
+          phone,
+          dateOfBirth
+        }));
+        localStorage.setItem('clientRememberMe', 'true');
+      } else {
+        localStorage.removeItem('clientLoginData');
+        localStorage.removeItem('clientRememberMe');
+      }
+
       if (!email.match(/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/)) {
         toast.error('Por favor, insira um email válido');
         return;
@@ -740,7 +768,19 @@ function ClientDashboard() {
                 )}
 
                 {isLogin && (
-                  <div className="text-right">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        id="rememberMe"
+                        checked={rememberMe}
+                        onChange={(e) => setRememberMe(e.target.checked)}
+                        className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+                      />
+                      <label htmlFor="rememberMe" className="ml-2 block text-sm text-gray-700">
+                        Lembrar dados
+                      </label>
+                    </div>
                     <Link
                       to="/reset-password"
                       className="text-sm text-purple-600 hover:text-purple-700 transition-colors"
@@ -790,7 +830,8 @@ function ClientDashboard() {
               </div>
               <div className="flex items-center gap-3">
                 <Link
-                  to="/client/promotions"
+                  to="/client/promot
+ions"
                   className="btn-secondary py-2 px-4 flex items-center gap-2 text-sm bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100"
                 >
                   <Tag className="w-4 h-4" />
