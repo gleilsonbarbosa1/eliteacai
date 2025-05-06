@@ -117,7 +117,7 @@ export default function AdminLayout() {
             </h1>
             <div className="flex items-center gap-4">
               <a
-                href="https://phenomenal-pastelito-aa1baf.netlify.app/"
+                href="https://celebrated-khapse-622a0c.netlify.app/dashboard"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-sm btn-secondary !py-1.5 !px-3 flex items-center gap-1.5 bg-green-500 text-white border-green-600 hover:bg-green-600"

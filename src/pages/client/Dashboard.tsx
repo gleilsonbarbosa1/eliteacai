@@ -34,26 +34,20 @@ const STORE_LOCATIONS: StoreLocation[] = [
 function ClientDashboard() {
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [email, setEmail] = useState(() => {
-    const savedData = localStorage.getItem('clientLoginData');
+    const savedData = localStorage.getItem('loginData');
     return savedData ? JSON.parse(savedData).email : '';
   });
-  const [name, setName] = useState(() => {
-    const savedData = localStorage.getItem('clientLoginData');
-    return savedData ? JSON.parse(savedData).name : '';
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [dateOfBirth, setDateOfBirth] = useState('');
+  const [password, setPassword] = useState(() => {
+    const savedData = localStorage.getItem('loginData');
+    return savedData ? JSON.parse(savedData).password : '';
   });
-  const [phone, setPhone] = useState(() => {
-    const savedData = localStorage.getItem('clientLoginData');
-    return savedData ? JSON.parse(savedData).phone : '';
-  });
-  const [dateOfBirth, setDateOfBirth] = useState(() => {
-    const savedData = localStorage.getItem('clientLoginData');
-    return savedData ? JSON.parse(savedData).dateOfBirth : '';
-  });
-  const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [isLogin, setIsLogin] = useState(true);
+  const [isLogin, setIsLogin] = useState(false);
   const [rememberMe, setRememberMe] = useState(() => {
-    return localStorage.getItem('clientRememberMe') === 'true';
+    return localStorage.getItem('rememberMe') === 'true';
   });
   const [transactionAmount, setTransactionAmount] = useState('');
   const [selectedStore, setSelectedStore] = useState<StoreLocation | null>(null);
@@ -82,6 +76,17 @@ function ClientDashboard() {
       checkLocationAndSetStore();
     }
   }, [customer?.id]);
+
+  useEffect(() => {
+    // Save login data if remember me is checked
+    if (rememberMe) {
+      localStorage.setItem('loginData', JSON.stringify({ email, password }));
+      localStorage.setItem('rememberMe', 'true');
+    } else {
+      localStorage.removeItem('loginData');
+      localStorage.removeItem('rememberMe');
+    }
+  }, [rememberMe, email, password]);
 
   const checkLocationAndSetStore = async () => {
     try {
@@ -228,19 +233,6 @@ function ClientDashboard() {
     setLoading(true);
 
     try {
-      if (rememberMe) {
-        localStorage.setItem('clientLoginData', JSON.stringify({
-          email,
-          name,
-          phone,
-          dateOfBirth
-        }));
-        localStorage.setItem('clientRememberMe', 'true');
-      } else {
-        localStorage.removeItem('clientLoginData');
-        localStorage.removeItem('clientRememberMe');
-      }
-
       if (!email.match(/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/)) {
         toast.error('Por favor, insira um email válido');
         return;
@@ -341,12 +333,14 @@ function ClientDashboard() {
         toast.success('Cadastro realizado com sucesso!');
       }
 
-      setEmail('');
-      setPhone('');
-      setName('');
-      setDateOfBirth('');
-      setPassword('');
-      setConfirmPassword('');
+      if (!rememberMe) {
+        setEmail('');
+        setPhone('');
+        setName('');
+        setDateOfBirth('');
+        setPassword('');
+        setConfirmPassword('');
+      }
     } catch (error: any) {
       console.error('Error:', error);
       toast.error(error.message || 'Erro ao processar solicitação');
@@ -767,20 +761,21 @@ function ClientDashboard() {
                   </div>
                 )}
 
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="rememberMe"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+                  />
+                  <label htmlFor="rememberMe" className="ml-2 block text-sm text-gray-700">
+                    Lembrar dados
+                  </label>
+                </div>
+
                 {isLogin && (
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center">
-                      <input
-                        type="checkbox"
-                        id="rememberMe"
-                        checked={rememberMe}
-                        onChange={(e) => setRememberMe(e.target.checked)}
-                        className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
-                      />
-                      <label htmlFor="rememberMe" className="ml-2 block text-sm text-gray-700">
-                        Lembrar dados
-                      </label>
-                    </div>
+                  <div className="text-right">
                     <Link
                       to="/reset-password"
                       className="text-sm text-purple-600 hover:text-purple-700 transition-colors"
@@ -830,13 +825,21 @@ function ClientDashboard() {
               </div>
               <div className="flex items-center gap-3">
                 <Link
-                  to="/client/promot
-ions"
+                  to="/client/promotions"
                   className="btn-secondary py-2 px-4 flex items-center gap-2 text-sm bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100"
                 >
                   <Tag className="w-4 h-4" />
                   Promoções
                 </Link>
+                <a
+                  href="https://celebrated-khapse-622a0c.netlify.app/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn-secondary py-2 px-4 flex items-center gap-2 text-sm bg-green-500 text-white border-green-600 hover:bg-green-600"
+                >
+                  <ShoppingBag className="w-4 h-4" />
+                  Fazer Pedido
+                </a>
                 <button
                   onClick={handleLogout}
                   className="btn-secondary py-2 px-4 flex items-center gap-2 text-sm"
