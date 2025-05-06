@@ -55,6 +55,8 @@ export interface WhatsAppNotification {
   customerId: string;
   amount?: number;
   cashbackAmount?: number;
+  title?: string;
+  date?: string;
 }
 
 export interface DuplicateCheck {

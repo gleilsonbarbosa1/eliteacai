@@ -11,7 +11,15 @@ export async function sendWhatsAppNotification(notification: WhatsAppNotificatio
           'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(notification),
+        body: JSON.stringify({
+          ...notification,
+          title: 'Sistema de Pedidos',
+          date: new Date().toLocaleDateString('pt-BR', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric'
+          })
+        }),
       }
     );
 
