@@ -7,21 +7,15 @@ import toast from 'react-hot-toast';
 import { getCurrentPosition, isWithinStoreRange, getClosestStore, formatDistance } from '../../utils/geolocation';
 import { getAvailableBalance, getNextExpiringCashback } from '../../utils/transactions';
 import type { Customer, Transaction, StoreLocation } from '../../types';
+import { STORE_LOCATIONS, TEST_STORE } from '../../types';
 import PromotionsAlert from '../../components/PromotionsAlert';
 import CashbackAnimation from '../../components/CashbackAnimation';
+import ConfirmationModal from '../../components/ConfirmationModal';
 
 const STORE_CASHBACK_RATE = 0.05; // 5% cashback for in-store purchases
 
-const STORE_LOCATIONS: StoreLocation[] = [
-  {
-    id: '123e4567-e89b-12d3-a456-426614174000', // Store 1 UUID
-    name: 'Loja Teste',
-    latitude: -3.8631793248061084,
-    longitude: -38.63185830651373,
-    radius: 40,
-    address: 'Loja Teste'
-  }
-];
+// Combine visible stores and test store for geolocation checks
+const ALL_STORE_LOCATIONS = [...STORE_LOCATIONS, TEST_STORE];
 
 function ClientDashboard() {
   const [customer, setCustomer] = useState<Customer | null>(null);
@@ -59,6 +53,8 @@ function ClientDashboard() {
   const [locationError, setLocationError] = useState<string | null>(null);
   const [showCashbackAnimation, setShowCashbackAnimation] = useState(false);
   const [lastCashbackAmount, setLastCashbackAmount] = useState(0);
+  const [showPurchaseConfirmation, setShowPurchaseConfirmation] = useState(false);
+  const [showRedemptionConfirmation, setShowRedemptionConfirmation] = useState(false);
 
   useEffect(() => {
     if (customer) {
@@ -341,7 +337,7 @@ function ClientDashboard() {
     }
   };
 
-  const addTransaction = async (e: React.FormEvent) => {
+  const handlePurchaseSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!customer) {
       toast.error('Por favor, faça login primeiro');
@@ -359,10 +355,15 @@ function ClientDashboard() {
       return;
     }
 
+    setShowPurchaseConfirmation(true);
+  };
+
+  const confirmPurchase = async () => {
     if (isSubmitting) return;
 
     setIsSubmitting(true);
     setLoading(true);
+    setShowPurchaseConfirmation(false);
 
     try {
       const position = await getCurrentPosition();
@@ -387,6 +388,7 @@ function ClientDashboard() {
         return;
       }
 
+      const amount = parseFloat(transactionAmount);
       const expirationDate = new Date();
       expirationDate.setMonth(expirationDate.getMonth() + 2, 0);
       expirationDate.setHours(23, 59, 59, 999);
@@ -462,7 +464,7 @@ function ClientDashboard() {
     }
   };
 
-  const handleRedeemCashback = async (e: React.FormEvent) => {
+  const handleRedemptionSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!customer) return;
 
@@ -490,8 +492,15 @@ function ClientDashboard() {
       return;
     }
 
+    setShowRedemptionConfirmation(true);
+  };
+
+  const confirmRedemption = async () => {
     setLoading(true);
+    setShowRedemptionConfirmation(false);
+
     try {
+      const amount = parseFloat(redemptionAmount);
       const currentBalance = await getAvailableBalance(customer.id);
       
       if (!currentBalance || amount > currentBalance) {
@@ -882,7 +891,7 @@ function ClientDashboard() {
             <div className="space-y-6">
               <div className="border-t border-b border-purple-100 -mx-8 px-8 py-6">
                 <h3 className="font-medium text-gray-900 mb-4">Registrar Nova Compra</h3>
-                <form onSubmit={addTransaction} className="space-y-4">
+                <form onSubmit={handlePurchaseSubmit} className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Loja
@@ -966,7 +975,7 @@ function ClientDashboard() {
                         <Gift className="w-5 h-5 text-purple-600" />
                         Resgatar Cashback
                       </h3>
-                      <form onSubmit={handleRedeemCashback} className="space-y-4">
+                      <form onSubmit={handleRedemptionSubmit} className="space-y-4">
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
                             Valor para Resgate
@@ -1136,7 +1145,7 @@ function ClientDashboard() {
                             <div className="flex items-center justify-between text-sm">
                               <span className="text-gray-600">Loja</span>
                               <span className="text-gray-900">
-                                {STORE_LOCATIONS.find(s => s.id === transaction.store_id)?.name || 'Loja não encontrada'}
+                                {ALL_STORE_LOCATIONS.find(s => s.id === transaction.store_id)?.name || 'Loja não encontrada'}
                               </span>
                             </div>
                           )}
@@ -1162,6 +1171,24 @@ function ClientDashboard() {
           <CashbackAnimation amount={lastCashbackAmount} />
         </div>
       )}
+
+      <ConfirmationModal
+        isOpen={showPurchaseConfirmation}
+        onClose={() => setShowPurchaseConfirmation(false)}
+        onConfirm={confirmPurchase}
+        title="Confirmar Compra"
+        message={`Deseja registrar uma compra no valor de R$ ${parseFloat(transactionAmount).toFixed(2)}?`}
+        confirmText="Registrar Compra"
+      />
+
+      <ConfirmationModal
+        isOpen={showRedemptionConfirmation}
+        onClose={() => setShowRedemptionConfirmation(false)}
+        onConfirm={confirmRedemption}
+        title="Confirmar Resgate"
+        message={`Deseja resgatar R$ ${parseFloat(redemptionAmount).toFixed(2)} em cashback?`}
+        confirmText="Confirmar Resgate"
+      />
     </div>
   );
 }
