@@ -78,18 +78,10 @@ export interface StoreLocation {
 export const STORE_LOCATIONS: StoreLocation[] = [
   {
     id: '123e4567-e89b-12d3-a456-426614174000', // Store 1 UUID
-    name: 'Loja 1: Rua Dois, 2130‑A, Residencial 1 – Cágado',
-    latitude: -3.7456789,
-    longitude: -38.5678901,
+    name: 'Loja Teste',
+    latitude: -3.8631793248061084,
+    longitude: -38.63185830651373,
     radius: 40,
-    address: 'Rua Dois, 2130‑A, Residencial 1 – Cágado'
-  },
-  {
-    id: '123e4567-e89b-12d3-a456-426614174001', // Store 2 UUID
-    name: 'Loja 2: Rua Um, 1614‑C, Residencial 1 – Cágado',
-    latitude: -3.7567890,
-    longitude: -38.5789012,
-    radius: 40,
-    address: 'Rua Um, 1614‑C, Residencial 1 – Cágado'
+    address: 'Loja Teste'
   }
 ];
