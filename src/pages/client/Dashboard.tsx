@@ -15,19 +15,11 @@ const STORE_CASHBACK_RATE = 0.05; // 5% cashback for in-store purchases
 const STORE_LOCATIONS: StoreLocation[] = [
   {
     id: '123e4567-e89b-12d3-a456-426614174000', // Store 1 UUID
-    name: 'Loja 1: Rua Dois, 2130‑A, Residencial 1 – Cágado',
-    latitude: -3.7456789,
-    longitude: -38.5678901,
+    name: 'Loja Teste',
+    latitude: -3.8631793248061084,
+    longitude: -38.63185830651373,
     radius: 40,
-    address: 'Rua Dois, 2130‑A, Residencial 1 – Cágado'
-  },
-  {
-    id: '123e4567-e89b-12d3-a456-426614174001', // Store 2 UUID
-    name: 'Loja 2: Rua Um, 1614‑C, Residencial 1 – Cágado',
-    latitude: -3.7567890,
-    longitude: -38.5789012,
-    radius: 40,
-    address: 'Rua Um, 1614‑C, Residencial 1 – Cágado'
+    address: 'Loja Teste'
   }
 ];
 
@@ -831,15 +823,6 @@ function ClientDashboard() {
                   <Tag className="w-4 h-4" />
                   Promoções
                 </Link>
-                <a
-                  href="https://celebrated-khapse-622a0c.netlify.app/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn-secondary py-2 px-4 flex items-center gap-2 text-sm bg-green-500 text-white border-green-600 hover:bg-green-600"
-                >
-                  <ShoppingBag className="w-4 h-4" />
-                  Fazer Pedido
-                </a>
                 <button
                   onClick={handleLogout}
                   className="btn-secondary py-2 px-4 flex items-center gap-2 text-sm"
