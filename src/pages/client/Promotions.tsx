@@ -73,7 +73,7 @@ export default function Promotions() {
             </div>
             <div>
               <h3 className="text-xl font-bold text-gray-900 mb-2">
-                Copo de 200g SEM PESO – R$6,99
+                Copo de 300g SEM PESO – R$9,99
               </h3>
               <ul className="space-y-2 text-gray-600">
                 <li>🥣 Disponível todos os dias da semana</li>

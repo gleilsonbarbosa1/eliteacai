@@ -13,7 +13,7 @@ export async function sendWhatsAppNotification(notification: WhatsAppNotificatio
         },
         body: JSON.stringify({
           ...notification,
-          title: 'Sistema de Pedidos',
+          title: notification.title || 'Sistema de Pedidos',
           date: new Date().toLocaleDateString('pt-BR', {
             day: '2-digit',
             month: '2-digit',
@@ -28,7 +28,7 @@ export async function sendWhatsAppNotification(notification: WhatsAppNotificatio
     }
 
     return await response.json();
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error sending WhatsApp notification:', error);
     return { success: false, error: error.message };
   }

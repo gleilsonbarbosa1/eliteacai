@@ -26,8 +26,8 @@ const PROMOTIONS: Promotion[] = [
   },
   {
     id: 'daily',
-    title: 'Copo 200g',
-    description: 'Copo de 200g SEM PESO por R$6,99!',
+    title: 'Copo 300g',
+    description: 'Copo de 300g SEM PESO por R$9,99!',
   }
 ];
 

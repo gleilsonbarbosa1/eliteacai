@@ -71,32 +71,25 @@ export interface StoreLocation {
   longitude: number;
   radius: number; // in meters
   address: string;
+  distance?: number;
 }
 
 // Store locations for geofencing
 export const STORE_LOCATIONS: StoreLocation[] = [
   {
-    id: 'store1',
-    name: 'Elite Açaí 1',
-    latitude: -3.859981833155958,
-    longitude: -38.63311136233465,
-    radius: 40, // 40 meters radius
+    id: '123e4567-e89b-12d3-a456-426614174000', // Store 1 UUID
+    name: 'Loja 1: Rua Dois, 2130‑A, Residencial 1 – Cágado',
+    latitude: -3.7456789,
+    longitude: -38.5678901,
+    radius: 40,
     address: 'Rua Dois, 2130‑A, Residencial 1 – Cágado'
   },
   {
-    id: 'store2',
-    name: 'Elite Açaí 2',
-    latitude: -3.8585200957980037,
-    longitude: -38.63444706015108,
-    radius: 40, // 40 meters radius
+    id: '123e4567-e89b-12d3-a456-426614174001', // Store 2 UUID
+    name: 'Loja 2: Rua Um, 1614‑C, Residencial 1 – Cágado',
+    latitude: -3.7567890,
+    longitude: -38.5789012,
+    radius: 40,
     address: 'Rua Um, 1614‑C, Residencial 1 – Cágado'
-  },
-  {
-    id: 'store3',
-    name: 'Elite Açaí (Teste)',
-    latitude: -3.863115098058069,
-    longitude: -38.631793933498614,
-    radius: 40, // 40 meters radius
-    address: 'Loja de Teste'
   }
 ];
