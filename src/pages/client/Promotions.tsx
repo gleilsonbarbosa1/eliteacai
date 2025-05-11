@@ -68,15 +68,15 @@ export default function Promotions() {
 
           <div className="border-2 border-purple-100 rounded-2xl p-6 space-y-6">
             <div className="flex items-center gap-2 text-purple-600">
-              <Clock className="w-5 h-5" />
-              <span className="font-medium">Todos os dias</span>
+              <Calendar className="w-5 h-5" />
+              <span className="font-medium">Segunda-feira</span>
             </div>
             <div>
               <h3 className="text-xl font-bold text-gray-900 mb-2">
                 Copo de 300g SEM PESO – R$9,99
               </h3>
               <ul className="space-y-2 text-gray-600">
-                <li>🥣 Disponível todos os dias da semana</li>
+                <li>🥣 Válida toda Segunda-feira</li>
                 <li>🥣 Porção prática com valor fixo</li>
                 <li>🥣 Também gera 5% de cashback!</li>
               </ul>
