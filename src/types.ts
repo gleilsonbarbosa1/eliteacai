@@ -81,7 +81,7 @@ export const STORE_LOCATIONS: StoreLocation[] = [
     name: 'Loja 1: Rua Dois, 2130‑A, Residencial 1 – Cágado',
     latitude: -3.7456789,
     longitude: -38.5678901,
-    radius: 100, // Increased radius to 100 meters
+    radius: 50, // 50 meters radius
     address: 'Rua Dois, 2130‑A, Residencial 1 – Cágado'
   },
   {
@@ -89,17 +89,17 @@ export const STORE_LOCATIONS: StoreLocation[] = [
     name: 'Loja 2: Rua Um, 1614‑C, Residencial 1 – Cágado',
     latitude: -3.7567890,
     longitude: -38.5789012,
-    radius: 100, // Increased radius to 100 meters
+    radius: 50, // 50 meters radius
     address: 'Rua Um, 1614‑C, Residencial 1 – Cágado'
   }
 ];
 
-// Test store location (not shown in selection but valid for transactions)
+// Test store location for development/testing
 export const TEST_STORE: StoreLocation = {
-  id: '123e4567-e89b-12d3-a456-426614174002',
+  id: 'test-store-id',
   name: 'Loja Teste',
-  latitude: -3.8631793248061084,
-  longitude: -38.63185830651373,
-  radius: 100, // Increased radius to 100 meters
-  address: 'Loja Teste'
+  latitude: -3.863168620348435,
+  longitude: -38.631793933498614,
+  radius: 1000, // 1km radius for testing
+  address: 'Endereço de Teste'
 };
