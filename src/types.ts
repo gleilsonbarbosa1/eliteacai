@@ -74,10 +74,10 @@ export interface StoreLocation {
   distance?: number;
 }
 
-// Store locations for geofencing
+// Store locations for geofencing - Using actual store IDs from the database
 export const STORE_LOCATIONS: StoreLocation[] = [
   {
-    id: '123e4567-e89b-12d3-a456-426614174000',
+    id: '550e8400-e29b-41d4-a716-446655440000', // Updated to match database ID
     name: 'Loja 1: Rua Dois, 2130‑A, Residencial 1 – Cágado',
     latitude: -3.7456789,
     longitude: -38.5678901,
@@ -85,7 +85,7 @@ export const STORE_LOCATIONS: StoreLocation[] = [
     address: 'Rua Dois, 2130‑A, Residencial 1 – Cágado'
   },
   {
-    id: '123e4567-e89b-12d3-a456-426614174001',
+    id: '550e8400-e29b-41d4-a716-446655440001', // Updated to match database ID
     name: 'Loja 2: Rua Um, 1614‑C, Residencial 1 – Cágado',
     latitude: -3.7567890,
     longitude: -38.5789012,
@@ -94,9 +94,9 @@ export const STORE_LOCATIONS: StoreLocation[] = [
   }
 ];
 
-// Test store location for development/testing
+// Test store location for development/testing - Using actual store ID from database
 export const TEST_STORE: StoreLocation = {
-  id: 'test-store-id',
+  id: '550e8400-e29b-41d4-a716-446655440002', // Updated to match database ID
   name: 'Loja Teste',
   latitude: -3.863168620348435,
   longitude: -38.631793933498614,

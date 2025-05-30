@@ -26,7 +26,7 @@ Deno.serve(async (req) => {
 
   try {
     const notification: WhatsAppNotification = await req.json();
-    const { type, customerId, amount, cashbackAmount, title, date } = notification;
+    const { type, customerId, amount, cashbackAmount, title = 'Elite Açaí', date } = notification;
 
     // Initialize Supabase client
     const supabase = createClient(
@@ -64,8 +64,8 @@ Deno.serve(async (req) => {
     }
 
     // Add header with title and date
-    const header = `*${title || 'Elite Açaí'}*\n${date || new Date().toLocaleDateString('pt-BR')}\n\n`;
-    const fullMessage = header + messageBody;
+    const currentDate = date || new Date().toLocaleDateString('pt-BR');
+    const fullMessage = `*${title}*\n${currentDate}\n\n${messageBody}`;
 
     // Send WhatsApp message using WhatsApp Business API
     const whatsappResponse = await fetch(

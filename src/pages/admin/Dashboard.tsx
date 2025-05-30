@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, ShoppingBag, Gift, CheckCircle2, XCircle, Users, TrendingUp, Wallet, Clock, AlertTriangle, FileText, Lock, BarChart3, X, MapPin, UserCircle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ShoppingBag, Gift, CheckCircle2, XCircle, Users, TrendingUp, Wallet, Clock, AlertTriangle, FileText, Lock, BarChart3, X, MapPin, UserCircle, Download, Calendar } from 'lucide-react';
 import DateRangeFilter from '../../components/DateRangeFilter';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
 import { generateCustomerReport } from '../../utils/reportGenerator';
+import * as XLSX from 'xlsx';
 
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState('transactions');
@@ -19,6 +20,7 @@ export default function Dashboard() {
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [password, setPassword] = useState('');
   const [adminEmail, setAdminEmail] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [metrics, setMetrics] = useState({
     totalCustomers: 0,
     activeCustomers: 0,
@@ -31,13 +33,18 @@ export default function Dashboard() {
   });
 
   useEffect(() => {
-    const getAdminEmail = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        setAdminEmail(user.email);
+    const getAdminData = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          setAdminEmail(user.email);
+        }
+      } catch (error) {
+        console.error('Error loading admin data:', error);
+        toast.error('Erro ao carregar dados: ' + error.message);
       }
     };
-    getAdminEmail();
+    getAdminData();
   }, []);
 
   const loadTransactions = async () => {
@@ -84,7 +91,7 @@ export default function Dashboard() {
           break;
       }
 
-      const { data: transactions, error: transactionsError } = await supabase
+      let query = supabase
         .from('transactions')
         .select(`
           *,
@@ -104,6 +111,8 @@ export default function Dashboard() {
         .lte('created_at', endDate.toISOString())
         .order('created_at', { ascending: false });
 
+      const { data: transactions, error: transactionsError } = await query;
+
       if (transactionsError) throw transactionsError;
 
       if (!transactions) {
@@ -121,9 +130,14 @@ export default function Dashboard() {
       const totalCashback = approvedPurchases.reduce((sum, t) => sum + Number(t.cashback_amount), 0);
       const totalRedemptions = approvedRedemptions.reduce((sum, t) => sum + Number(t.amount), 0);
 
-      const { data: customers, error: customersError } = await supabase
-        .from('customers')
-        .select('*');
+      let customerQuery = supabase.from('customers').select('*');
+      
+      const storeCustomerIds = [...new Set(transactions.map(t => t.customer_id))];
+      if (storeCustomerIds.length > 0) {
+        customerQuery = customerQuery.in('id', storeCustomerIds);
+      }
+
+      const { data: customers, error: customersError } = await customerQuery;
 
       if (customersError) throw customersError;
 
@@ -221,6 +235,77 @@ export default function Dashboard() {
     }
   };
 
+  const handleExportExcel = async () => {
+    try {
+      if (!reportData?.customers) {
+        toast.error('Nenhum dado disponível para exportar');
+        return;
+      }
+
+      // Filter customers based on status
+      const filteredCustomers = reportData.customers
+        .filter(customer => {
+          const metrics = reportData.customerMetrics.get(customer.id);
+          if (!metrics) return false;
+          
+          const daysSinceLastPurchase = metrics.lastPurchase
+            ? Math.floor((new Date() - new Date(metrics.lastPurchase)) / (1000 * 60 * 60 * 24))
+            : null;
+
+          switch (statusFilter) {
+            case 'active':
+              return daysSinceLastPurchase !== null && daysSinceLastPurchase <= 3;
+            case 'at_risk':
+              return daysSinceLastPurchase !== null && daysSinceLastPurchase > 3 && daysSinceLastPurchase <= 7;
+            case 'inactive':
+              return daysSinceLastPurchase === null || daysSinceLastPurchase > 7;
+            default:
+              return true;
+          }
+        });
+
+      // Prepare Excel data with raw phone numbers and additional columns
+      const excelData = filteredCustomers.map(customer => ({
+        Nome: customer.name || 'Não informado',
+        Telefone: customer.phone, // Raw phone number without formatting
+        Email: customer.email || 'Não informado',
+        Var1: '', // Empty column
+        Var2: '', // Empty column
+        Var3: '' // Empty column
+      }));
+
+      // Create workbook and worksheet
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(excelData);
+
+      // Set column widths
+      const colWidths = [
+        { wch: 30 }, // Nome
+        { wch: 15 }, // Telefone
+        { wch: 30 }, // Email
+        { wch: 15 }, // Var1
+        { wch: 15 }, // Var2
+        { wch: 15 }  // Var3
+      ];
+      ws['!cols'] = colWidths;
+
+      // Add worksheet to workbook
+      XLSX.utils.book_append_sheet(wb, ws, 'Cadastros');
+
+      // Generate Excel file
+      XLSX.writeFile(wb, `cadastros_${statusFilter}.xlsx`);
+
+      toast.success('Arquivo Excel gerado com sucesso!');
+    } catch (error) {
+      console.error('Error exporting Excel:', error);
+      toast.error('Erro ao exportar Excel: ' + error.message);
+    }
+  };
+
+  useEffect(() => {
+    loadTransactions();
+  }, [dateRange, activeTab]);
+
   const handlePreviousPage = () => {
     if (currentPage > 1) {
       setCurrentPage(currentPage - 1);
@@ -262,30 +347,6 @@ export default function Dashboard() {
     return `${days} dias atrás`;
   };
 
-  const handleGeneratePDF = async () => {
-    try {
-      if (!reportData?.customers) {
-        toast.error('Nenhum dado disponível para gerar relatório');
-        return;
-      }
-
-      await generateCustomerReport(
-        reportData.customers,
-        { startDate: customStartDate, endDate: customEndDate },
-        'profile'
-      );
-
-      toast.success('Relatório gerado com sucesso!');
-    } catch (error) {
-      console.error('Error generating report:', error);
-      toast.error('Erro ao gerar relatório: ' + error.message);
-    }
-  };
-
-  useEffect(() => {
-    loadTransactions();
-  }, [dateRange, activeTab]);
-
   return (
     <div className="p-6">
       <div className="space-y-6">
@@ -297,7 +358,6 @@ export default function Dashboard() {
             setCustomStartDate={setCustomStartDate}
             customEndDate={customEndDate}
             setCustomEndDate={setCustomEndDate}
-            onGeneratePDF={handleGeneratePDF}
             onDateChange={loadTransactions}
           />
           <button
@@ -484,13 +544,25 @@ export default function Dashboard() {
                   <FileText className="w-5 h-5 text-purple-600" />
                   Perfil de Compra dos Clientes
                 </h2>
-                <button
-                  onClick={handleGeneratePDF}
-                  className="btn-secondary py-2 px-4 text-sm flex items-center gap-2 bg-white"
-                >
-                  <FileText className="w-4 h-4" />
-                  Exportar PDF
-                </button>
+                <div className="flex gap-4">
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="bg-white border border-purple-200 rounded-lg px-3 py-2 text-sm"
+                  >
+                    <option value="all">Todos os Clientes</option>
+                    <option value="active">Clientes Ativos</option>
+                    <option value="at_risk">Clientes em Risco</option>
+                    <option value="inactive">Clientes Inativos</option>
+                  </select>
+                  <button
+                    onClick={handleExportExcel}
+                    className="btn-secondary py-2 px-4 text-sm flex items-center gap-2 bg-white"
+                  >
+                    <Download className="w-4 h-4" />
+                    Exportar Excel
+                  </button>
+                </div>
               </div>
 
               <div className="overflow-x-auto">
@@ -511,6 +583,25 @@ export default function Dashboard() {
                         const metricsA = reportData.customerMetrics.get(a.id);
                         const metricsB = reportData.customerMetrics.get(b.id);
                         return metricsB?.totalSpent - metricsA?.totalSpent;
+                      })
+                      .filter(customer => {
+                        const metrics = reportData.customerMetrics.get(customer.id);
+                        if (!metrics) return false;
+                        
+                        const daysSinceLastPurchase = metrics.lastPurchase
+                          ? Math.floor((new Date() - new Date(metrics.lastPurchase)) / (1000 * 60 * 60 * 24))
+                          : null;
+
+                        switch (statusFilter) {
+                          case 'active':
+                            return daysSinceLastPurchase !== null && daysSinceLastPurchase <= 3;
+                          case 'at_risk':
+                            return daysSinceLastPurchase !== null && daysSinceLastPurchase > 3 && daysSinceLastPurchase <= 7;
+                          case 'inactive':
+                            return daysSinceLastPurchase === null || daysSinceLastPurchase > 7;
+                          default:
+                            return true;
+                        }
                       })
                       .map(customer => {
                         const metrics = reportData.customerMetrics.get(customer.id);
@@ -591,6 +682,25 @@ export default function Dashboard() {
                         const lastActivityA = metricsA?.lastPurchase || new Date(0);
                         const lastActivityB = metricsB?.lastPurchase || new Date(0);
                         return new Date(lastActivityB).getTime() - new Date(lastActivityA).getTime();
+                      })
+                      .filter(customer => {
+                        const metrics = reportData.customerMetrics.get(customer.id);
+                        if (!metrics) return false;
+                        
+                        const daysSinceLastPurchase = metrics.lastPurchase
+                          ? Math.floor((new Date() - new Date(metrics.lastPurchase)) / (1000 * 60 * 60 * 24))
+                          : null;
+
+                        switch (statusFilter) {
+                          case 'active':
+                            return daysSinceLastPurchase !== null && daysSinceLastPurchase <= 3;
+                          case 'at_risk':
+                            return daysSinceLastPurchase !== null && daysSinceLastPurchase > 3 && daysSinceLastPurchase <= 7;
+                          case 'inactive':
+                            return daysSinceLastPurchase === null || daysSinceLastPurchase > 7;
+                          default:
+                            return true;
+                        }
                       })
                       .map(customer => {
                         const metrics = reportData.customerMetrics.get(customer.id);
@@ -677,8 +787,7 @@ export default function Dashboard() {
               >
                 <div className="flex items-center justify-center gap-2">
                   <ShoppingBag className="w-4 h-4" />
-                  Comp
-                  ras
+                  Compras
                 </div>
               </button>
               <button
