@@ -5,6 +5,25 @@ import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
 import { generateCustomerReport } from '../../utils/reportGenerator';
 import * as XLSX from 'xlsx';
+import { Bar } from 'react-chartjs-2';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend
+} from 'chart.js';
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend
+);
 
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState('transactions');
@@ -31,6 +50,10 @@ export default function Dashboard() {
     redemptionRate: 0,
     atRiskCustomers: 0
   });
+  const [weeklyData, setWeeklyData] = useState({
+    labels: [],
+    datasets: []
+  });
 
   useEffect(() => {
     const getAdminData = async () => {
@@ -46,6 +69,113 @@ export default function Dashboard() {
     };
     getAdminData();
   }, []);
+
+  const loadWeeklyData = async () => {
+    try {
+      const endDate = new Date();
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - 28); // Last 4 weeks
+
+      const { data: transactions, error } = await supabase
+        .from('transactions')
+        .select('*')
+        .gte('created_at', startDate.toISOString())
+        .lte('created_at', endDate.toISOString())
+        .eq('type', 'purchase')
+        .eq('status', 'approved');
+
+      if (error) throw error;
+
+      const weeklyTotals = {};
+      transactions.forEach(transaction => {
+        const date = new Date(transaction.created_at);
+        const weekStart = new Date(date);
+        weekStart.setDate(date.getDate() - date.getDay());
+        const weekKey = weekStart.toISOString().split('T')[0];
+        
+        weeklyTotals[weekKey] = weeklyTotals[weekKey] || {
+          count: 0,
+          cashback: 0
+        };
+        
+        weeklyTotals[weekKey].count++;
+        weeklyTotals[weekKey].cashback += Number(transaction.cashback_amount);
+      });
+
+      const sortedWeeks = Object.keys(weeklyTotals).sort();
+      
+      setWeeklyData({
+        labels: sortedWeeks.map(week => {
+          const date = new Date(week);
+          return `${date.getDate()}/${date.getMonth() + 1}`;
+        }),
+        datasets: [
+          {
+            label: 'Cashback Registrado (R$)',
+            data: sortedWeeks.map(week => weeklyTotals[week].cashback.toFixed(2)),
+            backgroundColor: 'rgba(147, 51, 234, 0.5)',
+            borderColor: 'rgb(147, 51, 234)',
+            borderWidth: 1
+          },
+          {
+            label: 'Número de Registros',
+            data: sortedWeeks.map(week => weeklyTotals[week].count),
+            backgroundColor: 'rgba(59, 130, 246, 0.5)',
+            borderColor: 'rgb(59, 130, 246)',
+            borderWidth: 1,
+            yAxisID: 'count'
+          }
+        ]
+      });
+    } catch (error) {
+      console.error('Error loading weekly data:', error);
+      toast.error('Erro ao carregar dados semanais');
+    }
+  };
+
+  useEffect(() => {
+    loadWeeklyData();
+  }, []);
+
+  const chartOptions = {
+    responsive: true,
+    interaction: {
+      mode: 'index',
+      intersect: false,
+    },
+    scales: {
+      y: {
+        type: 'linear',
+        display: true,
+        position: 'left',
+        title: {
+          display: true,
+          text: 'Cashback (R$)'
+        }
+      },
+      count: {
+        type: 'linear',
+        display: true,
+        position: 'right',
+        grid: {
+          drawOnChartArea: false,
+        },
+        title: {
+          display: true,
+          text: 'Número de Registros'
+        }
+      },
+    },
+    plugins: {
+      legend: {
+        position: 'top',
+      },
+      title: {
+        display: true,
+        text: 'Registros de Cashback por Semana'
+      },
+    },
+  };
 
   const loadTransactions = async () => {
     try {
@@ -242,7 +372,6 @@ export default function Dashboard() {
         return;
       }
 
-      // Filter customers based on status
       const filteredCustomers = reportData.customers
         .filter(customer => {
           const metrics = reportData.customerMetrics.get(customer.id);
@@ -264,35 +393,29 @@ export default function Dashboard() {
           }
         });
 
-      // Prepare Excel data with raw phone numbers and additional columns
       const excelData = filteredCustomers.map(customer => ({
         Nome: customer.name || 'Não informado',
-        Telefone: customer.phone, // Raw phone number without formatting
+        Telefone: customer.phone,
         Email: customer.email || 'Não informado',
-        Var1: '', // Empty column
-        Var2: '', // Empty column
-        Var3: '' // Empty column
+        Var1: '',
+        Var2: '',
+        Var3: ''
       }));
 
-      // Create workbook and worksheet
       const wb = XLSX.utils.book_new();
       const ws = XLSX.utils.json_to_sheet(excelData);
 
-      // Set column widths
       const colWidths = [
-        { wch: 30 }, // Nome
-        { wch: 15 }, // Telefone
-        { wch: 30 }, // Email
-        { wch: 15 }, // Var1
-        { wch: 15 }, // Var2
-        { wch: 15 }  // Var3
+        { wch: 30 },
+        { wch: 15 },
+        { wch: 30 },
+        { wch: 15 },
+        { wch: 15 },
+        { wch: 15 }
       ];
       ws['!cols'] = colWidths;
 
-      // Add worksheet to workbook
       XLSX.utils.book_append_sheet(wb, ws, 'Cadastros');
-
-      // Generate Excel file
       XLSX.writeFile(wb, `cadastros_${statusFilter}.xlsx`);
 
       toast.success('Arquivo Excel gerado com sucesso!');
@@ -535,6 +658,18 @@ export default function Dashboard() {
                     </div>
                   </div>
                 </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+              <div className="p-4 border-b bg-purple-50">
+                <h2 className="text-lg font-semibold text-purple-900 flex items-center gap-2">
+                  <BarChart3 className="w-5 h-5 text-purple-600" />
+                  Evolução Semanal do Cashback
+                </h2>
+              </div>
+              <div className="p-6">
+                <Bar data={weeklyData} options={chartOptions} />
               </div>
             </div>
 
