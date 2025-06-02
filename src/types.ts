@@ -33,73 +33,11 @@ export interface Transaction {
   comment?: string;
 }
 
-export interface Credit {
-  id: string;
-  customer_id: string;
-  amount: number;
-  expires_at: string;
-  created_at: string;
-  status: 'pending' | 'approved' | 'rejected';
-  payment_method: 'pix' | 'credit_card' | 'debit_card' | 'cash';
-}
-
-export interface Admin {
-  id: string;
-  email: string;
-  role: string;
-  created_at: string;
-}
-
-export interface WhatsAppNotification {
-  type: 'welcome' | 'purchase' | 'redemption';
-  customerId: string;
-  amount?: number;
-  cashbackAmount?: number;
-  title?: string;
-  date?: string;
-}
-
-export interface DuplicateCheck {
-  isDuplicate: boolean;
-  message?: string;
-}
-
 export interface StoreLocation {
   id: string;
   name: string;
+  address: string;
   latitude: number;
   longitude: number;
   radius: number; // in meters
-  address: string;
-  distance?: number;
 }
-
-// Store locations for geofencing - Using actual store IDs from the database
-export const STORE_LOCATIONS: StoreLocation[] = [
-  {
-    id: '550e8400-e29b-41d4-a716-446655440000', // Updated to match database ID
-    name: 'Loja 1: Rua Dois, 2130‑A, Residencial 1 – Cágado',
-    latitude: -3.7456789,
-    longitude: -38.5678901,
-    radius: 50, // 50 meters radius
-    address: 'Rua Dois, 2130‑A, Residencial 1 – Cágado'
-  },
-  {
-    id: '550e8400-e29b-41d4-a716-446655440001', // Updated to match database ID
-    name: 'Loja 2: Rua Um, 1614‑C, Residencial 1 – Cágado',
-    latitude: -3.7567890,
-    longitude: -38.5789012,
-    radius: 50, // 50 meters radius
-    address: 'Rua Um, 1614‑C, Residencial 1 – Cágado'
-  }
-];
-
-// Test store location for development/testing - Using actual store ID from database
-export const TEST_STORE: StoreLocation = {
-  id: '550e8400-e29b-41d4-a716-446655440002', // Updated to match database ID
-  name: 'Loja Teste',
-  latitude: -3.863168620348435,
-  longitude: -38.631793933498614,
-  radius: 1000, // 1km radius for testing
-  address: 'Endereço de Teste'
-};

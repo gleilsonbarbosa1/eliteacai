@@ -14,27 +14,27 @@
   }
   
   .input-field {
-    @apply w-full px-4 py-3.5 rounded-2xl border-2 border-purple-100 focus:ring-4 focus:ring-purple-100 focus:border-purple-400 transition-all duration-200 outline-none bg-white/50 backdrop-blur-sm text-base sm:text-lg;
+    @apply w-full px-4 py-3.5 rounded-2xl border-2 border-purple-100 focus:ring-4 focus:ring-purple-100 focus:border-purple-400 transition-all duration-200 outline-none bg-white/50 backdrop-blur-sm text-lg;
   }
   
   .btn-primary {
-    @apply px-4 sm:px-6 py-3 sm:py-3.5 bg-gradient-to-r from-purple-600 to-purple-500 text-white rounded-2xl hover:from-purple-700 hover:to-purple-600 transition-all duration-300 font-medium shadow-lg hover:shadow-xl active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed disabled:hover:shadow-lg disabled:hover:scale-100 text-base sm:text-lg;
+    @apply px-6 py-3.5 bg-gradient-to-r from-purple-600 to-purple-500 text-white rounded-2xl hover:from-purple-700 hover:to-purple-600 transition-all duration-300 font-medium shadow-lg hover:shadow-xl active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed disabled:hover:shadow-lg disabled:hover:scale-100;
   }
   
   .btn-secondary {
-    @apply px-4 sm:px-6 py-3 sm:py-3.5 bg-white text-purple-600 rounded-2xl hover:bg-gray-50 transition-all duration-300 font-medium border-2 border-purple-100 hover:border-purple-200 shadow-sm hover:shadow-md active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed disabled:hover:shadow-sm disabled:hover:scale-100 text-base sm:text-lg;
+    @apply px-6 py-3.5 bg-white text-purple-600 rounded-2xl hover:bg-gray-50 transition-all duration-300 font-medium border-2 border-purple-100 hover:border-purple-200 shadow-sm hover:shadow-md active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed disabled:hover:shadow-sm disabled:hover:scale-100;
   }
 
   .card-header {
-    @apply text-lg sm:text-xl font-semibold text-gray-800 mb-4 sm:mb-6 flex items-center gap-2;
+    @apply text-xl font-semibold text-gray-800 mb-6 flex items-center gap-2;
   }
 
   .transaction-item {
-    @apply p-4 sm:p-6 rounded-2xl border-2 border-purple-100/50 hover:border-purple-200 transition-all duration-300 hover:shadow-md bg-white/50 backdrop-blur-sm;
+    @apply p-6 rounded-2xl border-2 border-purple-100/50 hover:border-purple-200 transition-all duration-300 hover:shadow-md bg-white/50 backdrop-blur-sm;
   }
 
   .status-badge {
-    @apply px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-sm font-medium inline-flex items-center gap-1.5;
+    @apply px-3 py-1.5 rounded-full text-sm font-medium inline-flex items-center gap-1.5;
   }
 
   .status-badge.pending {
@@ -50,11 +50,11 @@
   }
 
   .balance-card {
-    @apply glass-card p-4 sm:p-6 md:p-8 relative overflow-hidden;
+    @apply glass-card p-6 sm:p-8 relative overflow-hidden;
   }
 
   .balance-header {
-    @apply flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4 sm:mb-6;
+    @apply flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6;
   }
 
   .balance-section {
@@ -66,7 +66,7 @@
   }
 
   .balance-amount {
-    @apply text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black bg-gradient-to-r from-purple-600 to-purple-500 bg-clip-text text-transparent;
+    @apply text-4xl sm:text-5xl md:text-6xl font-black bg-gradient-to-r from-purple-600 to-purple-500 bg-clip-text text-transparent;
   }
 
   .balance-expiration {
@@ -79,11 +79,11 @@
   }
 
   .dashboard-container {
-    @apply max-w-lg mx-auto space-y-4 sm:space-y-6 px-4 sm:px-0;
+    @apply max-w-lg mx-auto space-y-6 px-4 sm:px-0;
   }
 
   .transaction-form {
-    @apply -mx-4 sm:-mx-6 md:-mx-8 px-4 sm:px-6 md:px-8 py-4 sm:py-6 border-t border-b border-purple-100;
+    @apply -mx-6 sm:-mx-8 px-6 sm:px-8 py-6 border-t border-b border-purple-100;
   }
 
   .transaction-tabs {
@@ -91,7 +91,7 @@
   }
 
   .transaction-tab {
-    @apply px-2 sm:px-3 md:px-4 py-1.5 rounded-md font-medium transition-all text-sm;
+    @apply px-3 sm:px-4 py-1.5 rounded-md font-medium transition-all;
   }
 
   .transaction-tab.active {
@@ -103,23 +103,11 @@
   }
 
   .transaction-list {
-    @apply space-y-3 sm:space-y-4 mt-4 sm:mt-6;
+    @apply space-y-4 mt-6;
   }
 
   .empty-state {
-    @apply text-center text-gray-500 py-6 sm:py-8;
-  }
-
-  .mobile-menu {
-    @apply fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 shadow-lg py-2 px-4 flex justify-around items-center z-50 sm:hidden;
-  }
-
-  .mobile-menu-item {
-    @apply flex flex-col items-center gap-1 text-gray-600 hover:text-purple-600 transition-colors;
-  }
-
-  .mobile-menu-label {
-    @apply text-xs font-medium;
+    @apply text-center text-gray-500 py-8;
   }
 
   @media (max-width: 640px) {
@@ -132,7 +120,7 @@
     }
 
     .btn-primary, .btn-secondary {
-      @apply py-2.5 text-base;
+      @apply py-3 text-base;
     }
 
     .transaction-item {
@@ -144,15 +132,7 @@
     }
 
     .balance-amount {
-      @apply text-3xl;
-    }
-
-    .mobile-only {
-      @apply block sm:hidden;
-    }
-
-    .desktop-only {
-      @apply hidden sm:block;
+      @apply text-4xl;
     }
   }
 }

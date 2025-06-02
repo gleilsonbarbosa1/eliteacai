@@ -1,1086 +1,1057 @@
-import React, { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, ShoppingBag, Gift, CheckCircle2, XCircle, Users, TrendingUp, Wallet, Clock, AlertTriangle, FileText, Lock, BarChart3, X, MapPin, UserCircle, Download, Calendar } from 'lucide-react';
-import DateRangeFilter from '../../components/DateRangeFilter';
+import { useState, useEffect } from 'react';
+import { Phone, Wallet, History, ArrowLeftRight, CreditCard, ChevronRight, Clock, CheckCircle2, XCircle, Image, FileText, User, Gift, ChevronLeft, Crown, Trophy, Calendar, BarChart3, TrendingUp, DollarSign, AlertTriangle, Circle, Users, Lock, Star, ShoppingBag, Coins, Activity, Clock3, TrendingDown, MessageCircle } from 'lucide-react';
+import type { Customer, Transaction } from '../../types';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
+import { sendWhatsAppNotification } from '../../lib/notifications';
 import { generateCustomerReport } from '../../utils/reportGenerator';
-import * as XLSX from 'xlsx';
-import { Bar } from 'react-chartjs-2';
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend
-} from 'chart.js';
 
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend
-);
+interface CustomerWithLastRedemption extends Customer {
+  last_redemption?: {
+    amount: number;
+    created_at: string;
+  };
+  total_transactions?: number;
+  total_cashback?: number;
+  lifecycle_status?: 'new' | 'engaged' | 'inactive';
+}
 
-export default function Dashboard() {
-  const [activeTab, setActiveTab] = useState('transactions');
-  const [dateRange, setDateRange] = useState('today');
-  const [customStartDate, setCustomStartDate] = useState(new Date());
-  const [customEndDate, setCustomEndDate] = useState(new Date());
+interface ReportData {
+  totalSales: number;
+  totalCashbackGenerated: number;
+  totalCashbackRedeemed: number;
+  totalExpired: number;
+  cashbackPercentage: number;
+  averagePurchaseAmount: number;
+  mostCommonHour: number;
+  averageCashbackPerPurchase: number;
+  weeklyFrequency: number;
+}
+
+interface LifecycleStats {
+  new: number;
+  engaged: number;
+  inactive: number;
+}
+
+interface CustomerJourney {
+  firstUseDate: string;
+  totalPurchases: number;
+  totalCashbackEarned: number;
+  totalCashbackUsed: number;
+}
+
+type DateRange = 'day' | 'week' | 'month' | 'custom';
+
+export default function AdminDashboard() {
+  const [customers, setCustomers] = useState<CustomerWithLastRedemption[]>([]);
+  const [activeCustomer, setActiveCustomer] = useState<CustomerWithLastRedemption | null>(null);
+  const [transactionAmount, setTransactionAmount] = useState('');
+  const [pendingTransactions, setPendingTransactions] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [generatingReport, setGeneratingReport] = useState(false);
+  const [totalRedemptions, setTotalRedemptions] = useState(0);
+  const [todayRedemptions, setTodayRedemptions] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [loading, setLoading] = useState(false);
-  const [currentTransactions, setCurrentTransactions] = useState([]);
-  const [reportData, setReportData] = useState(null);
-  const [showAdvancedReport, setShowAdvancedReport] = useState(false);
-  const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [password, setPassword] = useState('');
-  const [adminEmail, setAdminEmail] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [metrics, setMetrics] = useState({
-    totalCustomers: 0,
-    activeCustomers: 0,
-    totalTransactions: 0,
-    averageTicket: 0,
-    totalRevenue: 0,
-    totalCashback: 0,
-    redemptionRate: 0,
-    atRiskCustomers: 0
+  const [totalCustomers, setTotalCustomers] = useState(0);
+  const [topCustomer, setTopCustomer] = useState<CustomerWithLastRedemption | null>(null);
+  const [dateRange, setDateRange] = useState<DateRange>('month');
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
+  const [reportData, setReportData] = useState<ReportData>({
+    totalSales: 0,
+    totalCashbackGenerated: 0,
+    totalCashbackRedeemed: 0,
+    totalExpired: 0,
+    cashbackPercentage: 0,
+    averagePurchaseAmount: 0,
+    mostCommonHour: 0,
+    averageCashbackPerPurchase: 0,
+    weeklyFrequency: 0,
   });
-  const [weeklyData, setWeeklyData] = useState({
-    labels: [],
-    datasets: []
+  const [lifecycleStats, setLifecycleStats] = useState<LifecycleStats>({
+    new: 0,
+    engaged: 0,
+    inactive: 0,
   });
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportPassword, setReportPassword] = useState('');
+  const [showReport, setShowReport] = useState(false);
+  const [customerJourney, setCustomerJourney] = useState<CustomerJourney | null>(null);
+  
+  const ITEMS_PER_PAGE = 10;
+  const CASHBACK_RATE = 0.05;
+
+  const renderLifecycleStatus = (status: 'new' | 'engaged' | 'inactive') => {
+    const baseClasses = "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-sm font-medium";
+    
+    switch (status) {
+      case 'new':
+        return (
+          <span className={`${baseClasses} bg-green-50 text-green-700 border border-green-100`}>
+            <Circle className="w-2 h-2 fill-green-500" />
+            Novo Cliente
+          </span>
+        );
+      case 'engaged':
+        return (
+          <span className={`${baseClasses} bg-yellow-50 text-yellow-700 border border-yellow-100`}>
+            <Circle className="w-2 h-2 fill-yellow-500" />
+            Engajado
+          </span>
+        );
+      case 'inactive':
+        return (
+          <span className={`${baseClasses} bg-red-50 text-red-700 border border-red-100`}>
+            <Circle className="w-2 h-2 fill-red-500" />
+            Inativo
+          </span>
+        );
+      default:
+        return (
+          <span className={`${baseClasses} bg-gray-50 text-gray-700 border border-gray-100`}>
+            <Circle className="w-2 h-2 fill-gray-500" />
+            Desconhecido
+          </span>
+        );
+    }
+  };
 
   useEffect(() => {
-    const getAdminData = async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          setAdminEmail(user.email);
-        }
-      } catch (error) {
-        console.error('Error loading admin data:', error);
-        toast.error('Erro ao carregar dados: ' + error.message);
-      }
-    };
-    getAdminData();
-  }, []);
+    loadCustomers();
+    loadPendingTransactions();
+    loadRedemptionStats();
+    loadTopCustomer();
+    loadReportData();
+  }, [currentPage, dateRange, customStartDate, customEndDate]);
 
-  const loadWeeklyData = async () => {
+  useEffect(() => {
+    if (activeCustomer) {
+      loadCustomerJourney(activeCustomer.id);
+    }
+  }, [activeCustomer]);
+
+  const loadCustomerJourney = async (customerId: string) => {
     try {
-      const endDate = new Date();
-      const startDate = new Date();
-      startDate.setDate(startDate.getDate() - 28); // Last 4 weeks
+      const { data: transactions, error } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('customer_id', customerId)
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+
+      if (!transactions?.length) return null;
+
+      const firstTransaction = transactions[0];
+      const purchases = transactions.filter(t => t.type === 'purchase' && t.status === 'approved');
+      const totalCashbackEarned = purchases.reduce((sum, t) => sum + (t.cashback_amount || 0), 0);
+      const redemptions = transactions.filter(t => t.type === 'redemption' && t.status === 'approved');
+      const totalCashbackUsed = redemptions.reduce((sum, t) => sum + (t.amount || 0), 0);
+
+      setCustomerJourney({
+        firstUseDate: firstTransaction.created_at,
+        totalPurchases: purchases.length,
+        totalCashbackEarned,
+        totalCashbackUsed
+      });
+    } catch (error) {
+      console.error('Error loading customer journey:', error);
+      toast.error('Erro ao carregar jornada do cliente');
+    }
+  };
+
+  const getCustomerLifecycleStatus = (customer: Customer, transactions: Transaction[]): 'new' | 'engaged' | 'inactive' => {
+    const now = new Date();
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const createdAt = new Date(customer.created_at);
+    const lastLogin = customer.last_login ? new Date(customer.last_login) : null;
+
+    if (createdAt >= sevenDaysAgo) {
+      return 'new';
+    }
+
+    if (lastLogin && lastLogin <= thirtyDaysAgo) {
+      return 'inactive';
+    }
+
+    const purchaseCount = transactions.filter(t => 
+      t.type === 'purchase' && t.status === 'approved'
+    ).length;
+
+    if (purchaseCount >= 3) {
+      return 'engaged';
+    }
+
+    return 'inactive';
+  };
+
+  const loadReportData = async () => {
+    try {
+      let startDate: Date;
+      let endDate = new Date();
+
+      switch (dateRange) {
+        case 'day':
+          startDate = new Date();
+          startDate.setHours(0, 0, 0, 0);
+          break;
+        case 'week':
+          startDate = new Date();
+          startDate.setDate(startDate.getDate() - 7);
+          break;
+        case 'month':
+          startDate = new Date();
+          startDate.setMonth(startDate.getMonth() - 1);
+          break;
+        case 'custom':
+          if (!customStartDate || !customEndDate) return;
+          startDate = new Date(customStartDate);
+          endDate = new Date(customEndDate);
+          endDate.setHours(23, 59, 59, 999);
+          break;
+        default:
+          startDate = new Date();
+          startDate.setMonth(startDate.getMonth() - 1);
+      }
 
       const { data: transactions, error } = await supabase
         .from('transactions')
         .select('*')
         .gte('created_at', startDate.toISOString())
-        .lte('created_at', endDate.toISOString())
-        .eq('type', 'purchase')
-        .eq('status', 'approved');
+        .lte('created_at', endDate.toISOString());
 
       if (error) throw error;
 
-      const weeklyTotals = {};
-      transactions.forEach(transaction => {
-        const date = new Date(transaction.created_at);
-        const weekStart = new Date(date);
-        weekStart.setDate(date.getDate() - date.getDay());
-        const weekKey = weekStart.toISOString().split('T')[0];
-        
-        weeklyTotals[weekKey] = weeklyTotals[weekKey] || {
-          count: 0,
-          cashback: 0
-        };
-        
-        weeklyTotals[weekKey].count++;
-        weeklyTotals[weekKey].cashback += Number(transaction.cashback_amount);
+      const approvedPurchases = transactions?.filter(t => 
+        t.type === 'purchase' && t.status === 'approved'
+      ) || [];
+
+      const approvedRedemptions = transactions?.filter(t =>
+        t.type === 'redemption' && t.status === 'approved'
+      ) || [];
+
+      const expiredTransactions = transactions?.filter(t =>
+        t.type === 'purchase' && 
+        t.status === 'approved' && 
+        t.expires_at && 
+        new Date(t.expires_at) <= new Date()
+      ) || [];
+
+      // Calculate basic metrics
+      const totalSales = approvedPurchases.reduce((sum, t) => sum + (t.amount || 0), 0);
+      const totalCashbackGenerated = approvedPurchases.reduce((sum, t) => sum + (t.cashback_amount || 0), 0);
+      const totalCashbackRedeemed = approvedRedemptions.reduce((sum, t) => sum + (t.amount || 0), 0);
+      const totalExpired = expiredTransactions.reduce((sum, t) => sum + (t.cashback_amount || 0), 0);
+      const cashbackPercentage = totalSales > 0 ? (totalCashbackGenerated / totalSales) * 100 : 0;
+
+      // Calculate average purchase amount
+      const averagePurchaseAmount = approvedPurchases.length > 0 
+        ? totalSales / approvedPurchases.length 
+        : 0;
+
+      // Calculate most common purchase hour
+      const purchaseHours = approvedPurchases.map(t => new Date(t.created_at).getHours());
+      const hourCounts = purchaseHours.reduce((acc, hour) => {
+        acc[hour] = (acc[hour] || 0) + 1;
+        return acc;
+      }, {} as Record<number, number>);
+      
+      const mostCommonHour = Object.entries(hourCounts)
+        .sort(([,a], [,b]) => b - a)[0]?.[0] || 0;
+
+      // Calculate average cashback per purchase
+      const averageCashbackPerPurchase = approvedPurchases.length > 0
+        ? totalCashbackGenerated / approvedPurchases.length
+        : 0;
+
+      // Calculate weekly frequency
+      const daysBetween = (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24);
+      const weeklyFrequency = (approvedPurchases.length / daysBetween) * 7;
+
+      setReportData({
+        totalSales,
+        totalCashbackGenerated,
+        totalCashbackRedeemed,
+        totalExpired,
+        cashbackPercentage,
+        averagePurchaseAmount,
+        mostCommonHour: parseInt(mostCommonHour),
+        averageCashbackPerPurchase,
+        weeklyFrequency
       });
 
-      const sortedWeeks = Object.keys(weeklyTotals).sort();
-      
-      setWeeklyData({
-        labels: sortedWeeks.map(week => {
-          const date = new Date(week);
-          return `${date.getDate()}/${date.getMonth() + 1}`;
-        }),
-        datasets: [
-          {
-            label: 'Cashback Registrado (R$)',
-            data: sortedWeeks.map(week => weeklyTotals[week].cashback.toFixed(2)),
-            backgroundColor: 'rgba(147, 51, 234, 0.5)',
-            borderColor: 'rgb(147, 51, 234)',
-            borderWidth: 1
-          },
-          {
-            label: 'Número de Registros',
-            data: sortedWeeks.map(week => weeklyTotals[week].count),
-            backgroundColor: 'rgba(59, 130, 246, 0.5)',
-            borderColor: 'rgb(59, 130, 246)',
-            borderWidth: 1,
-            yAxisID: 'count'
-          }
-        ]
-      });
     } catch (error) {
-      console.error('Error loading weekly data:', error);
-      toast.error('Erro ao carregar dados semanais');
+      console.error('Error loading report data:', error);
+      toast.error('Erro ao carregar relatório');
     }
   };
 
-  useEffect(() => {
-    loadWeeklyData();
-  }, []);
+  const loadTopCustomer = async () => {
+    try {
+      const { data: topCustomerData, error } = await supabase
+        .from('customers')
+        .select(`
+          *,
+          transactions:transactions(
+            amount,
+            cashback_amount,
+            type,
+            status,
+            created_at
+          )
+        `)
+        .order('created_at', { ascending: false });
 
-  const chartOptions = {
-    responsive: true,
-    interaction: {
-      mode: 'index',
-      intersect: false,
-    },
-    scales: {
-      y: {
-        type: 'linear',
-        display: true,
-        position: 'left',
-        title: {
-          display: true,
-          text: 'Cashback (R$)'
-        }
-      },
-      count: {
-        type: 'linear',
-        display: true,
-        position: 'right',
-        grid: {
-          drawOnChartArea: false,
-        },
-        title: {
-          display: true,
-          text: 'Número de Registros'
-        }
-      },
-    },
-    plugins: {
-      legend: {
-        position: 'top',
-      },
-      title: {
-        display: true,
-        text: 'Registros de Cashback por Semana'
-      },
-    },
+      if (error) throw error;
+
+      if (!topCustomerData?.length) return;
+
+      const customersWithTotalCashback = topCustomerData.map(customer => {
+        const totalCashback = customer.transactions
+          ?.filter((t: any) => t.type === 'purchase' && t.status === 'approved')
+          .reduce((sum: number, t: any) => sum + (t.cashback_amount || 0), 0) || 0;
+
+        return {
+          ...customer,
+          total_cashback: totalCashback
+        };
+      });
+
+      const sortedCustomers = customersWithTotalCashback.sort((a, b) => 
+        (b.total_cashback || 0) - (a.total_cashback || 0)
+      );
+
+      setTopCustomer(sortedCustomers[0]);
+    } catch (error) {
+      console.error('Error loading top customer:', error);
+    }
   };
 
-  const loadTransactions = async () => {
+  const loadCustomers = async () => {
     try {
-      setLoading(true);
+      const { count } = await supabase
+        .from('customers')
+        .select('*', { count: 'exact', head: true });
 
-      let startDate = new Date();
-      let endDate = new Date();
+      setTotalCustomers(count || 0);
+      setTotalPages(Math.ceil((count || 0) / ITEMS_PER_PAGE));
 
-      switch (dateRange) {
-        case 'today':
-          startDate.setHours(0, 0, 0, 0);
-          endDate.setHours(23, 59, 59, 999);
-          break;
-        case 'yesterday':
-          startDate.setDate(startDate.getDate() - 1);
-          startDate.setHours(0, 0, 0, 0);
-          endDate = new Date(startDate);
-          endDate.setHours(23, 59, 59, 999);
-          break;
-        case 'last7days':
-          startDate.setDate(startDate.getDate() - 7);
-          startDate.setHours(0, 0, 0, 0);
-          endDate.setHours(23, 59, 59, 999);
-          break;
-        case 'last30days':
-          startDate.setDate(startDate.getDate() - 30);
-          startDate.setHours(0, 0, 0, 0);
-          endDate.setHours(23, 59, 59, 999);
-          break;
-        case 'thisMonth':
-          startDate = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
-          endDate = new Date(endDate.getFullYear(), endDate.getMonth() + 1, 0, 23, 59, 59, 999);
-          break;
-        case 'lastMonth':
-          startDate = new Date(startDate.getFullYear(), startDate.getMonth() - 1, 1);
-          endDate = new Date(endDate.getFullYear(), endDate.getMonth(), 0, 23, 59, 59, 999);
-          break;
-        case 'custom':
-          startDate = new Date(customStartDate);
-          startDate.setHours(0, 0, 0, 0);
-          endDate = new Date(customEndDate);
-          endDate.setHours(23, 59, 59, 999);
-          break;
-      }
+      const { data: customersData, error: customersError } = await supabase
+        .from('customers')
+        .select(`
+          *,
+          transactions:transactions(
+            amount,
+            cashback_amount,
+            type,
+            status,
+            created_at
+          )
+        `)
+        .order('created_at', { ascending: false })
+        .range((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE - 1);
 
-      let query = supabase
+      if (customersError) throw customersError;
+
+      const customersWithData = await Promise.all(
+        (customersData || []).map(async (customer: any) => {
+          const { data: redemptions } = await supabase
+            .from('transactions')
+            .select('amount, created_at')
+            .eq('customer_id', customer.id)
+            .eq('type', 'redemption')
+            .eq('status', 'approved')
+            .order('created_at', { ascending: false })
+            .limit(1);
+
+          const lifecycle_status = getCustomerLifecycleStatus(customer, customer.transactions || []);
+
+          return {
+            ...customer,
+            total_transactions: customer.transactions?.length || 0,
+            last_redemption: redemptions?.[0] || null,
+            lifecycle_status
+          };
+        })
+      );
+
+      const stats = {
+        new: 0,
+        engaged: 0,
+        inactive: 0
+      };
+
+      customersWithData.forEach(customer => {
+        if (customer.lifecycle_status) {
+          stats[customer.lifecycle_status]++;
+        }
+      });
+
+      setLifecycleStats(stats);
+
+      customersWithData.sort((a, b) => 
+        (b.total_transactions || 0) - (a.total_transactions || 0)
+      );
+
+      setCustomers(customersWithData);
+    } catch (error: any) {
+      console.error('Error loading customers:', error);
+      toast.error('Erro ao carregar clientes');
+    }
+  };
+
+  const loadRedemptionStats = async () => {
+    try {
+      const { data: total, error: totalError } = await supabase
+        .from('transactions')
+        .select('amount')
+        .eq('type', 'redemption')
+        .eq('status', 'approved');
+
+      if (totalError) throw totalError;
+
+      const totalAmount = total?.reduce((sum, t) => sum + (t.amount || 0), 0) || 0;
+      setTotalRedemptions(totalAmount);
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const { data: todayData, error: todayError } = await supabase
+        .from('transactions')
+        .select('amount')
+        .eq('type', 'redemption')
+        .eq('status', 'approved')
+        .gte('created_at', today.toISOString());
+
+      if (todayError) throw todayError;
+
+      const todayAmount = todayData?.reduce((sum, t) => sum + (t.amount || 0), 0) || 0;
+      setTodayRedemptions(todayAmount);
+    } catch (error) {
+      console.error('Error loading redemption stats:', error);
+      toast.error('Erro ao carregar estatísticas de resgates');
+    }
+  };
+
+  const loadPendingTransactions = async () => {
+    try {
+      const { data, error } = await supabase
         .from('transactions')
         .select(`
           *,
           customers (
-            id,
-            name,
             phone,
-            balance
-          ),
-          stores (
-            id,
-            name,
-            code
+            name
           )
         `)
-        .gte('created_at', startDate.toISOString())
-        .lte('created_at', endDate.toISOString())
+        .eq('status', 'pending')
         .order('created_at', { ascending: false });
 
-      const { data: transactions, error: transactionsError } = await query;
-
-      if (transactionsError) throw transactionsError;
-
-      if (!transactions) {
-        setCurrentTransactions([]);
-        return;
-      }
-
-      setCurrentTransactions(transactions);
-      setTotalPages(Math.ceil(transactions.length / 10));
-
-      const approvedPurchases = transactions.filter(t => t.type === 'purchase' && t.status === 'approved');
-      const approvedRedemptions = transactions.filter(t => t.type === 'redemption' && t.status === 'approved');
-
-      const totalRevenue = approvedPurchases.reduce((sum, t) => sum + Number(t.amount), 0);
-      const totalCashback = approvedPurchases.reduce((sum, t) => sum + Number(t.cashback_amount), 0);
-      const totalRedemptions = approvedRedemptions.reduce((sum, t) => sum + Number(t.amount), 0);
-
-      let customerQuery = supabase.from('customers').select('*');
-      
-      const storeCustomerIds = [...new Set(transactions.map(t => t.customer_id))];
-      if (storeCustomerIds.length > 0) {
-        customerQuery = customerQuery.in('id', storeCustomerIds);
-      }
-
-      const { data: customers, error: customersError } = await customerQuery;
-
-      if (customersError) throw customersError;
-
-      const customerMetrics = new Map();
-      
-      customers.forEach(customer => {
-        const customerTransactions = transactions.filter(t => t.customer_id === customer.id);
-        
-        const metrics = {
-          totalPurchases: customerTransactions.filter(t => t.type === 'purchase' && t.status === 'approved').length,
-          totalSpent: customerTransactions
-            .filter(t => t.type === 'purchase' && t.status === 'approved')
-            .reduce((sum, t) => sum + Number(t.amount), 0),
-          lastPurchase: customerTransactions
-            .filter(t => t.type === 'purchase' && t.status === 'approved')
-            .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0]?.created_at,
-          status: 'inactive'
-        };
-
-        if (metrics.lastPurchase) {
-          const daysSinceLastPurchase = Math.floor(
-            (new Date() - new Date(metrics.lastPurchase)) / (1000 * 60 * 60 * 24)
-          );
-
-          if (daysSinceLastPurchase <= 3) {
-            metrics.status = 'active';
-          } else if (daysSinceLastPurchase <= 7) {
-            metrics.status = 'at_risk';
-          }
-        }
-
-        customerMetrics.set(customer.id, metrics);
-      });
-
-      const activeCustomers = Array.from(customerMetrics.values()).filter(m => m.status === 'active').length;
-      const atRiskCustomers = Array.from(customerMetrics.values()).filter(m => m.status === 'at_risk').length;
-      const averageTicket = approvedPurchases.length > 0 ? totalRevenue / approvedPurchases.length : 0;
-      const redemptionRate = totalCashback > 0 ? (totalRedemptions / totalCashback) * 100 : 0;
-
-      setMetrics({
-        totalCustomers: customers.length,
-        activeCustomers,
-        totalTransactions: approvedPurchases.length,
-        averageTicket,
-        totalRevenue,
-        totalCashback,
-        redemptionRate,
-        atRiskCustomers
-      });
-
-      setReportData({
-        customers,
-        customerMetrics,
-        transactions: transactions.filter(t => 
-          activeTab === 'purchases' ? t.type === 'purchase' : t.type === 'redemption'
-        )
-      });
-
-    } catch (error) {
-      console.error('Error loading transactions:', error);
-      toast.error('Erro ao carregar transações: ' + error.message);
-    } finally {
-      setLoading(false);
+      if (error) throw error;
+      setPendingTransactions(data || []);
+    } catch (error: any) {
+      console.error('Error loading pending transactions:', error);
+      toast.error('Erro ao carregar transações pendentes');
     }
   };
 
-  const handleStatusChange = async (transactionId, newStatus) => {
+  const handleTransactionStatus = async (transactionId: string, status: 'approved' | 'rejected') => {
+    setLoading(true);
     try {
       const { error } = await supabase
         .from('transactions')
         .update({ 
-          status: newStatus,
-          attendant_name: adminEmail
+          status,
+          updated_at: new Date().toISOString()
         })
         .eq('id', transactionId);
 
       if (error) throw error;
 
-      toast.success('Status atualizado com sucesso!');
-      loadTransactions();
-    } catch (error) {
-      console.error('Error updating status:', error);
-      toast.error('Erro ao atualizar status: ' + error.message);
+      const transaction = pendingTransactions.find(t => t.id === transactionId);
+      if (transaction && status === 'approved') {
+        await sendWhatsAppNotification({
+          type: 'purchase',
+          customerId: transaction.customer_id,
+          amount: transaction.amount || 0,
+          cashbackAmount: transaction.cashback_amount || 0
+        });
+      }
+
+      await Promise.all([
+        loadPendingTransactions(),
+        loadCustomers(),
+        loadRedemptionStats()
+      ]);
+
+      if (activeCustomer) {
+        const updatedCustomer = customers.find(c => c.id === activeCustomer.id);
+        if (updatedCustomer) {
+          setActiveCustomer(updatedCustomer);
+        }
+      }
+
+      toast.success(`Transação ${status === 'approved' ? 'aprovada' : 'rejeitada'} com sucesso!`);
+    } catch (error: any) {
+      console.error('Error updating transaction:', error);
+      toast.error('Erro ao atualizar transação');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handlePasswordSubmit = (e) => {
+  const addTransaction = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (password === 'Gle0103,,#*') {
-      setShowPasswordModal(false);
-      setShowAdvancedReport(true);
-      setPassword('');
+    if (!activeCustomer) return;
+
+    const amount = parseFloat(transactionAmount);
+    if (isNaN(amount) || amount <= 0) {
+      toast.error('Por favor, insira um valor válido');
+      return;
+    }
+
+    setLoading(true);
+    const cashbackAmount = Number((amount * CASHBACK_RATE).toFixed(2));
+
+    try {
+      const { data: transaction, error } = await supabase
+        .from('transactions')
+        .insert({
+          customer_id: activeCustomer.id,
+          amount,
+          cashback_amount: cashbackAmount,
+          type: 'purchase',
+          status: 'approved',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      await sendWhatsAppNotification({
+        type: 'purchase',
+        customerId: activeCustomer.id,
+        amount,
+        cashbackAmount,
+      });
+
+      await Promise.all([
+        loadCustomers(),
+        loadPendingTransactions(),
+        loadRedemptionStats()
+      ]);
+
+      const updatedCustomer = customers.find(c => c.id === activeCustomer.id);
+      if (updatedCustomer) {
+        setActiveCustomer(updatedCustomer);
+      }
+
+      setTransactionAmount('');
+      toast.success('Compra registrada com sucesso!');
+    } catch (error: any) {
+      console.error('Error:', error);
+      toast.error('Erro ao registrar compra');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const redeemCashback = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeCustomer || !activeCustomer.balance) return;
+
+    setLoading(true);
+    try {
+      const { data: transaction, error } = await supabase
+        .from('transactions')
+        .insert({
+          customer_id: activeCustomer.id,
+          amount: activeCustomer.balance,
+          cashback_amount: -activeCustomer.balance,
+          type: 'redemption',
+          status: 'approved',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      await sendWhatsAppNotification({
+        type: 'redemption',
+        customerId: activeCustomer.id,
+        amount: activeCustomer.balance,
+      });
+
+      await Promise.all([
+        loadCustomers(),
+        loadPendingTransactions(),
+        loadRedemptionStats()
+      ]);
+
+      const updatedCustomer = customers.find(c => c.id === activeCustomer.id);
+      if (updatedCustomer) {
+        setActiveCustomer(updatedCustomer);
+      }
+
+      toast.success('Cashback resgatado com sucesso!');
+    } catch (error: any) {
+      console.error('Error:', error);
+      toast.error('Erro ao resgatar cashback');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGenerateReport = async () => {
+    try {
+      setGeneratingReport(true);
+      await generateCustomerReport(customers);
+      toast.success('Relatório gerado com sucesso!');
+    } catch (error) {
+      console.error('Error generating report:', error);
+      toast.error('Erro ao gerar relatório');
+    } finally {
+      setGeneratingReport(false);
+    }
+  };
+
+  const handleReportAccess = () => {
+    if (reportPassword === 'Gle0103,,#*') {
+      setShowReport(true);
+      setShowReportModal(false);
+      setReportPassword('');
     } else {
       toast.error('Senha incorreta');
     }
   };
 
-  const handleExportExcel = async () => {
-    try {
-      if (!reportData?.customers) {
-        toast.error('Nenhum dado disponível para exportar');
-        return;
-      }
-
-      const filteredCustomers = reportData.customers
-        .filter(customer => {
-          const metrics = reportData.customerMetrics.get(customer.id);
-          if (!metrics) return false;
-          
-          const daysSinceLastPurchase = metrics.lastPurchase
-            ? Math.floor((new Date() - new Date(metrics.lastPurchase)) / (1000 * 60 * 60 * 24))
-            : null;
-
-          switch (statusFilter) {
-            case 'active':
-              return daysSinceLastPurchase !== null && daysSinceLastPurchase <= 3;
-            case 'at_risk':
-              return daysSinceLastPurchase !== null && daysSinceLastPurchase > 3 && daysSinceLastPurchase <= 7;
-            case 'inactive':
-              return daysSinceLastPurchase === null || daysSinceLastPurchase > 7;
-            default:
-              return true;
-          }
-        });
-
-      const excelData = filteredCustomers.map(customer => ({
-        Nome: customer.name || 'Não informado',
-        Telefone: customer.phone,
-        Email: customer.email || 'Não informado',
-        Var1: '',
-        Var2: '',
-        Var3: ''
-      }));
-
-      const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.json_to_sheet(excelData);
-
-      const colWidths = [
-        { wch: 30 },
-        { wch: 15 },
-        { wch: 30 },
-        { wch: 15 },
-        { wch: 15 },
-        { wch: 15 }
-      ];
-      ws['!cols'] = colWidths;
-
-      XLSX.utils.book_append_sheet(wb, ws, 'Cadastros');
-      XLSX.writeFile(wb, `cadastros_${statusFilter}.xlsx`);
-
-      toast.success('Arquivo Excel gerado com sucesso!');
-    } catch (error) {
-      console.error('Error exporting Excel:', error);
-      toast.error('Erro ao exportar Excel: ' + error.message);
-    }
-  };
-
-  useEffect(() => {
-    loadTransactions();
-  }, [dateRange, activeTab]);
-
-  const handlePreviousPage = () => {
-    if (currentPage > 1) {
-      setCurrentPage(currentPage - 1);
-    }
-  };
-
-  const handleNextPage = () => {
-    if (currentPage < totalPages) {
-      setCurrentPage(currentPage + 1);
-    }
-  };
-
-  const formatDateTime = (dateString) => {
-    return new Date(dateString).toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
-  const formatCurrency = (value) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
-    }).format(value);
-  };
-
-  const getLastActivity = (customer, metrics) => {
-    if (!metrics.lastPurchase) return 'Nunca comprou';
+  const formatDateTime = (dateString: string | null) => {
+    if (!dateString) return 'Data não disponível';
     
-    const days = Math.floor(
-      (new Date() - new Date(metrics.lastPurchase)) / (1000 * 60 * 60 * 24)
-    );
-
-    if (days === 0) return 'Hoje';
-    if (days === 1) return 'Ontem';
-    return `${days} dias atrás`;
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return 'Data inválida';
+      
+      return date.toLocaleDateString('pt-BR', {
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return 'Data inválida';
+    }
   };
+
+  const renderTransaction = (transaction: Transaction) => (
+    <div key={transaction.id} className="transaction-item">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex-1">
+          <div className="font-medium flex items-center gap-2 mb-2">
+            <Phone className="w-4 h-4 text-primary-600" />
+            {/* @ts-ignore */}
+            <span>{transaction.customers?.phone}</span>
+          </div>
+          {/* @ts-ignore */}
+          {transaction.customers?.name && (
+            <div className="text-gray-600 flex items-center gap-2 mb-2">
+              <User className="w-4 h-4" />
+              {/* @ts-ignore */}
+              <span>{transaction.customers.name}</span>
+            </div>
+          )}
+          <div className="text-lg font-medium mb-1">
+            Valor da Compra: R$ {(transaction.amount || 0).toFixed(2)}
+          </div>
+          <div className="text-sm text-green-600">
+            Cashback (5%): R$ {(transaction.cashback_amount || 0).toFixed(2)}
+          </div>
+          <div className="text-sm text-gray-600 mt-2 flex items-center gap-1.5">
+            <Clock className="w-4 h-4" />
+            {formatDateTime(transaction.created_at)}
+          </div>
+          {transaction.receipt_url && (
+            <button
+              onClick={() => setSelectedImage(transaction.receipt_url)}
+              className="mt-2 text-sm text-purple-600 hover:text-purple-700 flex items-center gap-1.5"
+            >
+              <Image className="w-4 h-4" />
+              Ver comprovante
+            </button>
+          )}
+          {transaction.comment && (
+            <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-100">
+              <div className="text-sm font-medium text-gray-700 mb-1 flex items-center gap-1.5">
+                <MessageCircle className="w-4 h-4" />
+                Comentário do Cliente
+              </div>
+              <p className="text-gray-600 text-sm whitespace-pre-wrap">{transaction.comment}</p>
+            </div>
+          )}
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => handleTransactionStatus(transaction.id, 'approved')}
+            disabled={loading}
+            className="btn-primary py-2 px-4"
+          >
+            <CheckCircle2 className="w-5 h-5" />
+          </button>
+          <button
+            onClick={() => handleTransactionStatus(transaction.id, 'rejected')}
+            disabled={loading}
+            className="btn-secondary py-2 px-4 !bg-red-50 !text-red-600 !border-red-100 hover:!bg-red-100 hover:!border-red-200"
+          >
+            <XCircle className="w-5 h-5" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 
   return (
-    <div className="p-6">
-      <div className="space-y-6">
-        <div className="bg-white rounded-lg shadow p-4 flex items-center justify-between">
-          <DateRangeFilter
-            dateRange={dateRange}
-            setDateRange={setDateRange}
-            customStartDate={customStartDate}
-            setCustomStartDate={setCustomStartDate}
-            customEndDate={customEndDate}
-            setCustomEndDate={setCustomEndDate}
-            onDateChange={loadTransactions}
-          />
+    <div className="space-y-8">
+      {showReportModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-8">
+            <div className="flex items-center gap-3 mb-6">
+              <Lock className="w-6 h-6 text-purple-600" />
+              <h2 className="text-xl font-semibold">Acesso ao Relatório</h2>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Digite a senha
+                </label>
+                <input
+                  type="password"
+                  value={reportPassword}
+                  onChange={(e) => setReportPassword(e.target.value)}
+                  className="input-field"
+                  placeholder="••••••"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      handleReportAccess();
+                    }
+                  }}
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={handleReportAccess}
+                  className="btn-primary flex-1"
+                >
+                  Acessar
+                </button>
+                <button
+                  onClick={() => {
+                    setShowReportModal(false);
+                    setReportPassword('');
+                  }}
+                  className="btn-secondary flex-1"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showReport ? (
+        <div className="glass-card p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="card-header !mb-0">
+              <BarChart3 className="w-5 h-5 text-purple-600" />
+              Relatório Avançado
+            </h2>
+            <div className="flex gap-2">
+              <select
+                value={dateRange}
+                onChange={(e) => setDateRange(e.target.value as DateRange)}
+                className="input-field !py-2 !text-base"
+              >
+                <option value="day">Hoje</option>
+                <option value="week">Últimos 7 dias</option>
+                <option value="month">Último mês</option>
+                <option value="custom">Personalizado</option>
+              </select>
+              
+              {dateRange === 'custom' && (
+                <div className="flex gap-2">
+                  <input
+                    type="date"
+                    value={customStartDate}
+                    onChange={(e) => setCustomStartDate(e.target.value)}
+                    className="input-field !py-2 !text-base"
+                  />
+                  <input
+                    type="date"
+                    value={customEndDate}
+                    onChange={(e) => setCustomEndDate(e.target.value)}
+                    className="input-field !py-2 !text-base"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="glass-card p-6 mb-6">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="card-header !mb-0">
+                <Users className="w-5 h-5 text-purple-600" />
+                Perfil de Compra dos Clientes
+              </h2>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              <div className="p-4 bg-purple-50 rounded-xl border border-purple-100">
+                <div className="flex items-center gap-2 text-purple-700 mb-2">
+                  <DollarSign className="w-5 h-5" />
+                  <span className="font-medium">Valor Médio de Compra</span>
+                </div>
+                <div className="text-2xl font-bold text-purple-700">
+                  R$ {reportData.averagePurchaseAmount.toFixed(2)}
+                </div>
+              </div>
+
+              <div className="p-4 bg-green-50 rounded-xl border border-green-100">
+                <div className="flex items-center gap-2 text-green-700 mb-2">
+                  <Coins className="w-5 h-5" />
+                  <span className="font-medium">Cashback Médio por Compra</span>
+                </div>
+                <div className="text-2xl font-bold text-green-700">
+                  R$ {reportData.averageCashbackPerPurchase.toFixed(2)}
+                </div>
+              </div>
+
+              <div className="p-4 bg-blue-50 rounded-xl border border-blue-100">
+                <div className="flex items-center gap-2 text-blue-700 mb-2">
+                  <Clock3 className="w-5 h-5" />
+                  <span className="font-medium">Horário Mais Comum</span>
+                </div>
+                <div className="text-2xl font-bold text-blue-700">
+                  {reportData.mostCommonHour}:00h
+                </div>
+              </div>
+
+              <div className="p-4 bg-orange-50 rounded-xl border border-orange-100">
+                <div className="flex items-center gap-2 text-orange-700 mb-2">
+                  <TrendingDown className="w-5 h-5" />
+                  <span className="font-medium">Frequência Semanal</span>
+                </div>
+                <div className="text-2xl font-bold text-orange-700">
+                  {reportData.weeklyFrequency.toFixed(1)} compras/semana
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="glass-card p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="card-header !mb-0">
+                <Users className="w-5 h-5 text-purple-600" />
+                Ciclo de Vida dos Clientes
+              </h2>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="p-4 bg-green-50 rounded-xl border border-green-100">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2 text-green-700">
+                    <Circle className="w-3 h-3 fill-green-500" />
+                    <span className="font-medium">Novos</span>
+                  </div>
+                  <span className="text-2xl font-bold text-green-700">{lifecycleStats.new}</span>
+                </div>
+                <p className="text-sm text-green-600">Cadastro há 7 dias ou menos</p>
+              </div>
+
+              <div className="p-4 bg-yellow-50 rounded-xl border border-yellow-100">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2 text-yellow-700">
+                    <Circle className="w-3 h-3 fill-yellow-500" />
+                    <span className="font-medium">Engajados</span>
+                  </div>
+                  <span className="text-2xl font-bold text-yellow-700">{lifecycleStats.engaged}</span>
+                </div>
+                <p className="text-sm text-yellow-600">3 ou mais compras registradas</p>
+              </div>
+
+              <div className="p-4 bg-red-50 rounded-xl border border-red-100">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2 text-red-700">
+                    <Circle className="w-3 h-3 fill-red-500" />
+                    <span className="font-medium">Inativos</span>
+                  </div>
+                  <span className="text-2xl font-bold text-red-700">{lifecycleStats.inactive}</span>
+                </div>
+                <p className="text-sm text-red-600">Sem acesso há 30 dias ou mais</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
+            <div className="p-4 bg-white rounded-xl border border-gray-100">
+              <div className="flex items-center gap-2 text-gray-600 mb-2">
+                <TrendingUp className="w-4 h-4" />
+                <span className="text-sm">Total de Vendas</span>
+              </div>
+              <div className="text-2xl font-bold">
+                R$ {reportData.totalSales.toFixed(2)}
+              </div>
+            </div>
+
+            <div className="p-4 bg-white rounded-xl border border-gray-100">
+              <div className="flex items-center gap-2 text-gray-600 mb-2">
+                <Gift className="w-4 h-4" />
+                <span className="text-sm">Cashback Gerado</span>
+              </div>
+              <div className="text-2xl font-bold">
+                R$ {reportData.totalCashbackGenerated.toFixed(2)}
+              </div>
+            </div>
+
+            <div className="p-4 bg-white rounded-xl border border-gray-100">
+              <div className="flex items-center gap-2 text-gray-600 mb-2">
+                <Coins className="w-4 h-4" />
+                <span className="text-sm">Cashback Resgatado</span>
+              </div>
+              <div className="text-2xl font-bold">
+                R$ {reportData.totalCashbackRedeemed.toFixed(2)}
+              </div>
+            </div>
+
+            <div className="p-4 bg-white rounded-xl border border-gray-100">
+              <div className="flex items-center gap-2 text-gray-600 mb-2">
+                <AlertTriangle className="w-4 h-4" />
+                <span className="text-sm">Cashback Expirado</span>
+              </div>
+              <div className="text-2xl font-bold">
+                R$ {reportData.totalExpired.toFixed(2)}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="glass-card p-6">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="card-header !mb-0">
+            <Clock className="w-5 h-5 text-purple-600" />
+            Transações Pendentes
+          </h2>
           <button
-            onClick={() => setShowPasswordModal(true)}
-            className={`btn-primary py-2 px-4 text-sm flex items-center gap-2 ${
-              showAdvancedReport ? 'bg-purple-700' : ''
-            }`}
+            onClick={() => setShowReportModal(true)}
+            className="btn-primary py-2 px-4 flex items-center gap-2"
           >
             <BarChart3 className="w-4 h-4" />
             Relatório Avançado
           </button>
         </div>
 
-        {showPasswordModal && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold flex items-center gap-2">
-                  <Lock className="w-5 h-5 text-purple-600" />
-                  Acesso Restrito
-                </h3>
-                <button
-                  onClick={() => {
-                    setShowPasswordModal(false);
-                    setPassword('');
-                  }}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              <form onSubmit={handlePasswordSubmit}>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Senha
-                  </label>
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                    placeholder="Digite a senha"
-                    required
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    type="submit"
-                    className="btn-primary flex-1 py-2"
-                  >
-                    Acessar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowPasswordModal(false);
-                      setPassword('');
-                    }}
-                    className="btn-secondary flex-1 py-2"
-                  >
-                    Cancelar
-                  </button>
-                </div>
-              </form>
+        <div className="space-y-4">
+          {pendingTransactions.length === 0 ? (
+            <div className="text-center text-gray-500 py-8">
+              Nenhuma transação pendente
             </div>
+          ) : (
+            pendingTransactions.map(transaction => renderTransaction(transaction))
+          )}
+        </div>
+      </div>
+
+      <div className="glass-card p-6">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="card-header !mb-0">
+            <Users className="w-5 h-5 text-purple-600" />
+            Clientes
+          </h2>
+          <div className="flex gap-2">
+            <button
+              onClick={handleGenerateReport}
+              disabled={generatingReport}
+              className="btn-secondary py-2 px-4 flex items-center gap-2"
+            >
+              <FileText className="w-4 h-4" />
+              {generatingReport ? 'Gerando...' : 'Gerar Relatório'}
+            </button>
           </div>
-        )}
+        </div>
 
-        {showAdvancedReport ? (
-          <div className="space-y-6">
-            <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-              <div className="p-4 border-b bg-purple-50">
-                <h2 className="text-lg font-semibold text-purple-900 flex items-center gap-2">
-                  <BarChart3 className="w-5 h-5 text-purple-600" />
-                  Métricas Gerais
-                </h2>
-              </div>
-              <div className="p-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                  <div className="bg-gradient-to-br from-purple-50 to-white rounded-xl shadow-md p-6 border border-purple-100">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-2">
-                        <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                          <Users className="w-5 h-5 text-purple-600" />
-                        </div>
-                        <h3 className="font-medium text-gray-900">Clientes</h3>
-                      </div>
-                      <span className="text-2xl font-bold text-gray-900">{metrics.totalCustomers}</span>
-                    </div>
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between text-sm">
-                        <div className="flex items-center gap-2">
-                          <div className="w-3 h-3 rounded-full bg-green-500" />
-                          <span className="text-gray-600">Ativos</span>
-                        </div>
-                        <span className="font-medium text-green-600">{metrics.activeCustomers}</span>
-                      </div>
-                      <div className="flex items-center justify-between text-sm">
-                        <div className="flex items-center gap-2">
-                          <div className="w-3 h-3 rounded-full bg-yellow-500" />
-                          <span className="text-gray-600">Em risco</span>
-                        </div>
-                        <span className="font-medium text-yellow-600">{metrics.atRiskCustomers}</span>
-                      </div>
-                    </div>
+        <div className="space-y-4">
+          {customers.map(customer => (
+            <div key={customer.id} className="transaction-item">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1">
+                  <div className="font-medium flex items-center gap-2 mb-2">
+                    <Phone className="w-4 h-4 text-primary-600" />
+                    <span>{customer.phone}</span>
                   </div>
-
-                  <div className="bg-gradient-to-br from-purple-50 to-white rounded-xl shadow-md p-6 border border-purple-100">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-2">
-                        <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                          <TrendingUp className="w-5 h-5 text-purple-600" />
-                        </div>
-                        <h3 className="font-medium text-gray-900">Faturamento</h3>
-                      </div>
-                      <span className="text-2xl font-bold text-gray-900">{formatCurrency(metrics.totalRevenue)}</span>
+                  {customer.name && (
+                    <div className="text-gray-600 flex items-center gap-2 mb-2">
+                      <User className="w-4 h-4" />
+                      <span>{customer.name}</span>
                     </div>
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-gray-600">Ticket Médio</span>
-                        <span className="font-medium text-gray-900">{formatCurrency(metrics.averageTicket)}</span>
-                      </div>
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-gray-600">Transações</span>
-                        <span className="font-medium text-gray-900">{metrics.totalTransactions}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="bg-gradient-to-br from-purple-50 to-white rounded-xl shadow-md p-6 border border-purple-100">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-2">
-                        <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                          <Wallet className="w-5 h-5 text-purple-600" />
-                        </div>
-                        <h3 className="font-medium text-gray-900">Cashback</h3>
-                      </div>
-                      <span className="text-2xl font-bold text-gray-900">{formatCurrency(metrics.totalCashback)}</span>
-                    </div>
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-gray-600">Taxa de Resgate</span>
-                        <span className="font-medium text-gray-900">{metrics.redemptionRate.toFixed(1)}%</span>
-                      </div>
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-gray-600">Média por Cliente</span>
-                        <span className="font-medium text-gray-900">
-                          {formatCurrency(metrics.totalCustomers > 0 ? metrics.totalCashback / metrics.totalCustomers : 0)}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="bg-gradient-to-br from-purple-50 to-white rounded-xl shadow-md p-6 border border-purple-100">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-2">
-                        <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                          <AlertTriangle className="w-5 h-5 text-purple-600" />
-                        </div>
-                        <h3 className="font-medium text-gray-900">Alertas</h3>
-                      </div>
-                      <span className="text-2xl font-bold text-yellow-600">{metrics.atRiskCustomers}</span>
-                    </div>
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-gray-600">Clientes em Risco</span>
-                        <span className="font-medium text-yellow-600">{metrics.atRiskCustomers}</span>
-                      </div>
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-gray-600">Taxa de Risco</span>
-                        <span className="font-medium text-yellow-600">
-                          {metrics.totalCustomers > 0 ? ((metrics.atRiskCustomers / metrics.totalCustomers) * 100).toFixed(1) : 0}%
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-              <div className="p-4 border-b bg-purple-50">
-                <h2 className="text-lg font-semibold text-purple-900 flex items-center gap-2">
-                  <BarChart3 className="w-5 h-5 text-purple-600" />
-                  Evolução Semanal do Cashback
-                </h2>
-              </div>
-              <div className="p-6">
-                <Bar data={weeklyData} options={chartOptions} />
-              </div>
-            </div>
-
-            <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-              <div className="p-4 border-b bg-purple-50 flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-purple-900 flex items-center gap-2">
-                  <FileText className="w-5 h-5 text-purple-600" />
-                  Perfil de Compra dos Clientes
-                </h2>
-                <div className="flex gap-4">
-                  <select
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    className="bg-white border border-purple-200 rounded-lg px-3 py-2 text-sm"
-                  >
-                    <option value="all">Todos os Clientes</option>
-                    <option value="active">Clientes Ativos</option>
-                    <option value="at_risk">Clientes em Risco</option>
-                    <option value="inactive">Clientes Inativos</option>
-                  </select>
-                  <button
-                    onClick={handleExportExcel}
-                    className="btn-secondary py-2 px-4 text-sm flex items-center gap-2 bg-white"
-                  >
-                    <Download className="w-4 h-4" />
-                    Exportar Excel
-                  </button>
-                </div>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="text-left border-b bg-gray-50">
-                      <th className="p-4 text-sm font-medium text-gray-500">Cliente</th>
-                      <th className="p-4 text-sm font-medium text-gray-500">Ticket Médio</th>
-                      <th className="p-4 text-sm font-medium text-gray-500">Total Compras</th>
-                      <th className="p-4 text-sm font-medium text-gray-500">Total Gasto</th>
-                      <th className="p-4 text-sm font-medium text-gray-500">Cashback Acumulado</th>
-                      <th className="p-4 text-sm font-medium text-gray-500">Última Compra</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {reportData?.customers
-                      .sort((a, b) => {
-                        const metricsA = reportData.customerMetrics.get(a.id);
-                        const metricsB = reportData.customerMetrics.get(b.id);
-                        return metricsB?.totalSpent - metricsA?.totalSpent;
-                      })
-                      .filter(customer => {
-                        const metrics = reportData.customerMetrics.get(customer.id);
-                        if (!metrics) return false;
-                        
-                        const daysSinceLastPurchase = metrics.lastPurchase
-                          ? Math.floor((new Date() - new Date(metrics.lastPurchase)) / (1000 * 60 * 60 * 24))
-                          : null;
-
-                        switch (statusFilter) {
-                          case 'active':
-                            return daysSinceLastPurchase !== null && daysSinceLastPurchase <= 3;
-                          case 'at_risk':
-                            return daysSinceLastPurchase !== null && daysSinceLastPurchase > 3 && daysSinceLastPurchase <= 7;
-                          case 'inactive':
-                            return daysSinceLastPurchase === null || daysSinceLastPurchase > 7;
-                          default:
-                            return true;
-                        }
-                      })
-                      .map(customer => {
-                        const metrics = reportData.customerMetrics.get(customer.id);
-                        if (!metrics) return null;
-
-                        const averageTicket = metrics.totalPurchases > 0 
-                          ? metrics.totalSpent / metrics.totalPurchases 
-                          : 0;
-
-                        return (
-                          <tr key={customer.id} className="border-b hover:bg-purple-50/50 transition-colors">
-                            <td className="p-4">
-                              <div className="font-medium text-gray-900">
-                                {customer.name || 'Não informado'}
-                              </div>
-                              <div className="text-sm text-gray-500">{customer.phone}</div>
-                            </td>
-                            <td className="p-4">
-                              <div className="font-medium text-gray-900">
-                                {formatCurrency(averageTicket)}
-                              </div>
-                            </td>
-                            <td className="p-4">
-                              <div className="font-medium text-gray-900">
-                                {metrics.totalPurchases}
-                              </div>
-                            </td>
-                            <td className="p-4">
-                              <div className="font-medium text-gray-900">
-                                {formatCurrency(metrics.totalSpent)}
-                              </div>
-                            </td>
-                            <td className="p-4">
-                              <div className="font-medium text-purple-600">
-                                {formatCurrency(metrics.totalSpent * 0.05)}
-                              </div>
-                            </td>
-                            <td className="p-4">
-                              <div className="text-gray-600">
-                                {metrics.lastPurchase 
-                                  ? formatDateTime(metrics.lastPurchase)
-                                  : 'Nunca comprou'}
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-              <div className="p-4 border-b bg-purple-50">
-                <h2 className="text-lg font-semibold text-purple-900 flex items-center gap-2">
-                  <Users className="w-5 h-5 text-purple-600" />
-                  Clientes Ativos
-                </h2>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="text-left border-b bg-gray-50">
-                      <th className="p-4 text-sm font-medium text-gray-500">Status</th>
-                      <th className="p-4 text-sm font-medium text-gray-500">Nome</th>
-                      <th className="p-4 text-sm font-medium text-gray-500">Telefone</th>
-                      <th className="p-4 text-sm font-medium text-gray-500">Última Atividade</th>
-                      <th className="p-4 text-sm font-medium text-gray-500">Total de Compras</th>
-                      <th className="p-4 text-sm font-medium text-gray-500">Total Gasto</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {reportData?.customers
-                      .sort((a, b) => {
-                        const metricsA = reportData.customerMetrics.get(a.id);
-                        const metricsB = reportData.customerMetrics.get(b.id);
-                        const lastActivityA = metricsA?.lastPurchase || new Date(0);
-                        const lastActivityB = metricsB?.lastPurchase || new Date(0);
-                        return new Date(lastActivityB).getTime() - new Date(lastActivityA).getTime();
-                      })
-                      .filter(customer => {
-                        const metrics = reportData.customerMetrics.get(customer.id);
-                        if (!metrics) return false;
-                        
-                        const daysSinceLastPurchase = metrics.lastPurchase
-                          ? Math.floor((new Date() - new Date(metrics.lastPurchase)) / (1000 * 60 * 60 * 24))
-                          : null;
-
-                        switch (statusFilter) {
-                          case 'active':
-                            return daysSinceLastPurchase !== null && daysSinceLastPurchase <= 3;
-                          case 'at_risk':
-                            return daysSinceLastPurchase !== null && daysSinceLastPurchase > 3 && daysSinceLastPurchase <= 7;
-                          case 'inactive':
-                            return daysSinceLastPurchase === null || daysSinceLastPurchase > 7;
-                          default:
-                            return true;
-                        }
-                      })
-                      .map(customer => {
-                        const metrics = reportData.customerMetrics.get(customer.id);
-                        if (!metrics) return null;
-
-                        const daysSinceLastPurchase = metrics.lastPurchase
-                          ? Math.floor((new Date().getTime() - new Date(metrics.lastPurchase).getTime()) / (1000 * 60 * 60 * 24))
-                          : null;
-
-                        return (
-                          <tr key={customer.id} className="border-b hover:bg-purple-50/50 transition-colors">
-                            <td className="p-4">
-                              <div className="flex items-center gap-2">
-                                {daysSinceLastPurchase === null ? '🔴' : 
-                                 daysSinceLastPurchase <= 3 ? '🟢' :
-                                 daysSinceLastPurchase <= 7 ? '🟡' : '🔴'}
-                                <span className="text-sm text-gray-600">
-                                  {daysSinceLastPurchase === null ? 'Inativo' :
-                                   daysSinceLastPurchase <= 3 ? 'Ativo' :
-                                   daysSinceLastPurchase <= 7 ? 'Em risco' : 'Inativo'}
-                                </span>
-                              </div>
-                            </td>
-                            <td className="p-4">
-                              <div className="font-medium text-gray-900">
-                                {customer.name || 'Não informado'}
-                              </div>
-                            </td>
-                            <td className="p-4">
-                              <div className="text-gray-600">
-                                {customer.phone}
-                              </div>
-                            </td>
-                            <td className="p-4">
-                              <div className="text-gray-600">
-                                {getLastActivity(customer, metrics)}
-                              </div>
-                            </td>
-                            <td className="p-4">
-                              <div className="font-medium text-gray-900">
-                                {metrics.totalPurchases}
-                              </div>
-                            </td>
-                            <td className="p-4">
-                              <div className="font-medium text-gray-900">
-                                {formatCurrency(metrics.totalSpent)}
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="p-4 bg-gray-50 border-t">
-                <div className="flex items-center gap-6 text-sm text-gray-600">
-                  <div className="flex items-center gap-2">
-                    <span>🟢</span>
-                    <span>Última compra em até 3 dias</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span>🟡</span>
-                    <span>Última compra entre 4 e 7 dias</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span>🔴</span>
-                    <span>Última compra há mais de 8 dias</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-            <div className="flex border-b bg-purple-50">
-              <button
-                className={`flex-1 px-6 py-4 text-sm font-medium transition-colors ${
-                  activeTab === 'purchases' 
-                    ? 'text-purple-900 border-b-2 border-purple-600 bg-white' 
-                    : 'text-gray-600 hover:text-purple-600'
-                }`}
-                onClick={() => setActiveTab('purchases')}
-              >
-                <div className="flex items-center justify-center gap-2">
-                  <ShoppingBag className="w-4 h-4" />
-                  Compras
-                </div>
-              </button>
-              <button
-                className={`flex-1 px-6 py-4 text-sm font-medium transition-colors ${
-                  activeTab === 'redemptions' 
-                    ? 'text-purple-900 border-b-2 border-purple-600 bg-white' 
-                    : 'text-gray-600 hover:text-purple-600'
-                }`}
-                onClick={() => setActiveTab('redemptions')}
-              >
-                <div className="flex items-center justify-center gap-2">
-                  <Gift className="w-4 h-4" />
-                  Resgates
-                </div>
-              </button>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="text-left border-b bg-gray-50">
-                    <th className="p-4 text-sm font-medium text-gray-500">Data</th>
-                    <th className="p-4 text-sm font-medium text-gray-500">Cliente</th>
-                    <th className="p-4 text-sm font-medium text-gray-500">Loja</th>
-                    <th className="p-4 text-sm font-medium text-gray-500">Atendente</th>
-                    <th className="p-4 text-sm font-medium text-gray-500">Valor</th>
-                    <th className="p-4 text-sm font-medium text-gray-500">Status</th>
-                    <th className="p-4 text-sm font-medium text-gray-500">Ações</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {loading ? (
-                    <tr>
-                      <td colSpan={7} className="p-4 text-center text-gray-500">
-                        <div className="flex items-center justify-center gap-2">
-                          <div className="w-5 h-5 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
-                          <span>Carregando...</span>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : currentTransactions.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} className="p-4 text-center text-gray-500">
-                        Nenhuma transação encontrada
-                      </td>
-                    </tr>
-                  ) : (
-                    currentTransactions
-                      .filter(t => activeTab === 'purchases' ? t.type === 'purchase' : t.type === 'redemption')
-                      .map((transaction) => (
-                        <tr key={transaction.id} className="border-b hover:bg-purple-50/50 transition-colors">
-                          <td className="p-4">
-                            {formatDateTime(transaction.created_at)}
-                          </td>
-                          <td className="p-4">
-                            <div className="font-medium text-gray-900">
-                              {transaction.customers?.name || 'Não informado'}
-                            </div>
-                            <div className="text-sm text-gray-500">
-                              {transaction.customers?.phone || 'N/A'}
-                            </div>
-                          </td>
-                          <td className="p-4">
-                            <div className="flex items-center gap-2">
-                              <MapPin className="w-4 h-4 text-gray-400" />
-                              <div className="text-gray-600">
-                                {transaction.stores?.name || 'Loja não informada'}
-                              </div>
-                            </div>
-                          </td>
-                          <td className="p-4">
-                            <div className="flex items-center gap-2">
-                              <UserCircle className="w-4 h-4 text-gray-400" />
-                              <div className="text-gray-600">
-                                {transaction.attendant_name || 'Não informado'}
-                              </div>
-                            </div>
-                          </td>
-                          <td className="p-4">
-                            <div className="font-medium text-gray-900">
-                              {formatCurrency(transaction.amount)}
-                            </div>
-                            {transaction.type === 'purchase' && (
-                              <div className="text-sm text-purple-600">
-                                + {formatCurrency(transaction.cashback_amount)} cashback
-                              </div>
-                            )}
-                          </td>
-                          <td className="p-4">
-                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-sm font-medium ${
-                              transaction.status === 'approved'
-                                ? 'bg-green-50 text-green-700 border border-green-200'
-                                : transaction.status === 'rejected'
-                                ? 'bg-red-50 text-red-700 border border-red-200'
-                                : 'bg-yellow-50 text-yellow-700 border border-yellow-200'
-                            }`}>
-                              {transaction.status === 'approved' 
-                                ? <CheckCircle2 className="w-4 h-4" /> 
-                                : transaction.status === 'rejected'
-                                ? <XCircle className="w-4 h-4" />
-                                : <Clock className="w-4 h-4" />
-                              }
-                              {transaction.status === 'approved' ? 'Aprovado' :
-                               transaction.status === 'rejected' ? 'Rejeitado' : 'Pendente'}
-                            </span>
-                          </td>
-                          <td className="p-4">
-                            {transaction.status === 'pending' && (
-                              <div className="flex gap-2">
-                                <button
-                                  onClick={() => handleStatusChange(transaction.id, 'approved')}
-                                  className="p-1.5 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg transition-colors"
-                                  title="Aprovar"
-                                >
-                                  <CheckCircle2 className="w-5 h-5" />
-                                </button>
-                                <button
-                                  onClick={() => handleStatusChange(transaction.id, 'rejected')}
-                                  className="p-1.5 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
-                                  title="Rejeitar"
-                                >
-                                  <XCircle className="w-5 h-5" />
-                                </button>
-                              </div>
-                            )}
-                          </td>
-                        </tr>
-                      ))
                   )}
-                </tbody>
-              </table>
-            </div>
-
-            {totalPages > 1 && (
-              <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-t">
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={handlePreviousPage}
-                    disabled={currentPage === 1}
-                    className="p-2 text-gray-600 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg hover:bg-gray-100 transition-colors"
-                  >
-                    <ChevronLeft className="w-5 h-5" />
-                  </button>
-                  <span className="text-sm text-gray-600">
-                    Página {currentPage} de {totalPages}
-                  </span>
-                  <button
-                    onClick={handleNextPage}
-                    disabled={currentPage === totalPages}
-                    className="p-2 text-gray-600 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg hover:bg-gray-100 transition-colors"
-                  >
-                    <ChevronRight className="w-5 h-5" />
-                  </button>
+                  <div className="flex items-center gap-2 mb-2">
+                    <Activity className="w-4 h-4 text-gray-500" />
+                    <span className="text-gray-600">
+                      {customer.total_transactions || 0} transações
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {renderLifecycleStatus(customer.lifecycle_status || 'inactive')}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="font-medium">
+                    Saldo: R$ {customer.balance.toFixed(2)}
+                  </div>
+                  {customer.last_redemption && (
+                    <div className="text-sm text-gray-600">
+                      Último resgate: R$ {customer.last_redemption.amount.toFixed(2)}
+                    </div>
+                  )}
                 </div>
               </div>
-            )}
-          </div>
-        )}
+            </div>
+          ))}
+
+          {totalPages > 1 && (
+            <div className="flex justify-center gap-2 mt-6">
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+                className="btn-secondary py-2 px-4"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              <span className="py-2 px-4 text-gray-600">
+                Página {currentPage} de {totalPages}
+              </span>
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                disabled={currentPage === totalPages}
+                className="btn-secondary py-2 px-4"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -11,15 +11,7 @@ export async function sendWhatsAppNotification(notification: WhatsAppNotificatio
           'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          ...notification,
-          title: notification.title || 'Sistema de Pedidos',
-          date: new Date().toLocaleDateString('pt-BR', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric'
-          })
-        }),
+        body: JSON.stringify(notification),
       }
     );
 
@@ -28,7 +20,7 @@ export async function sendWhatsAppNotification(notification: WhatsAppNotificatio
     }
 
     return await response.json();
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error sending WhatsApp notification:', error);
     return { success: false, error: error.message };
   }

@@ -4,43 +4,26 @@ import { Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { sendWhatsAppNotification } from '../../lib/notifications';
 import toast from 'react-hot-toast';
-import { getCurrentPosition, isWithinStoreRange, getClosestStore, formatDistance } from '../../utils/geolocation';
+import { getCurrentPosition, isWithinStoreRange, getClosestStore, formatDistance, calculateDistance } from '../../utils/geolocation';
 import { getAvailableBalance, getNextExpiringCashback } from '../../utils/transactions';
-import type { Customer, Transaction, StoreLocation } from '../../types';
-import { STORE_LOCATIONS, TEST_STORE } from '../../types';
-import PromotionsAlert from '../../components/PromotionsAlert';
-import CashbackAnimation from '../../components/CashbackAnimation';
-import ConfirmationModal from '../../components/ConfirmationModal';
+import type { Customer, Transaction } from '../../types';
+import ActivityStats from '../../components/ActivityStats';
+import { STORE_LOCATIONS } from '../../constants';
 
 const STORE_CASHBACK_RATE = 0.05; // 5% cashback for in-store purchases
 
-// Combine visible stores and test store for geolocation checks
-const ALL_STORE_LOCATIONS = [...STORE_LOCATIONS, TEST_STORE];
-
-function ClientDashboard() {
+export default function ClientDashboard() {
   const [customer, setCustomer] = useState<Customer | null>(null);
-  const [email, setEmail] = useState(() => {
-    const savedData = localStorage.getItem('loginData');
-    return savedData ? JSON.parse(savedData).email : '';
-  });
+  const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [dateOfBirth, setDateOfBirth] = useState('');
-  const [password, setPassword] = useState(() => {
-    const savedData = localStorage.getItem('loginData');
-    return savedData ? JSON.parse(savedData).password : '';
-  });
+  const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [isLogin, setIsLogin] = useState(false);
-  const [rememberMe, setRememberMe] = useState(() => {
-    return localStorage.getItem('rememberMe') === 'true';
-  });
-  const [whatsAppConsent, setWhatsAppConsent] = useState(false);
+  const [isLogin, setIsLogin] = useState(true);
   const [transactionAmount, setTransactionAmount] = useState('');
-  const [selectedStore, setSelectedStore] = useState<StoreLocation | null>(null);
   const [showRedemptionForm, setShowRedemptionForm] = useState(false);
   const [redemptionAmount, setRedemptionAmount] = useState('');
-  const [selectedRedemptionStore, setSelectedRedemptionStore] = useState<StoreLocation | null>(null);
   const [loading, setLoading] = useState(false);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [activeTab, setActiveTab] = useState<'purchases' | 'redemptions'>('purchases');
@@ -50,68 +33,16 @@ function ClientDashboard() {
   const [nextExpiringAmount, setNextExpiringAmount] = useState<{ amount: number; date: Date } | null>(null);
   const [isTopCustomer, setIsTopCustomer] = useState(false);
   const [topCustomerRank, setTopCustomerRank] = useState<number | null>(null);
-  const [userLocation, setUserLocation] = useState<GeolocationPosition | null>(null);
-  const [locationError, setLocationError] = useState<string | null>(null);
-  const [showCashbackAnimation, setShowCashbackAnimation] = useState(false);
-  const [lastCashbackAmount, setLastCashbackAmount] = useState(0);
-  const [showPurchaseConfirmation, setShowPurchaseConfirmation] = useState(false);
-  const [showRedemptionConfirmation, setShowRedemptionConfirmation] = useState(false);
+  const [comment, setComment] = useState('');
+  const [selectedStore, setSelectedStore] = useState<string>('');
 
   useEffect(() => {
     if (customer) {
       loadTransactions();
       calculateAvailableBalance();
       checkTopCustomerStatus();
-      checkLocationAndSetStore();
     }
   }, [customer?.id]);
-
-  useEffect(() => {
-    // Save login data if remember me is checked
-    if (rememberMe) {
-      localStorage.setItem('loginData', JSON.stringify({ email, password }));
-      localStorage.setItem('rememberMe', 'true');
-    } else {
-      localStorage.removeItem('loginData');
-      localStorage.removeItem('rememberMe');
-    }
-  }, [rememberMe, email, password]);
-
-  const checkLocationAndSetStore = async () => {
-    try {
-      const position = await getCurrentPosition();
-      setUserLocation(position);
-      setLocationError(null);
-
-      const { latitude, longitude } = position.coords;
-      
-      if (isWithinStoreRange(latitude, longitude)) {
-        const closestStore = getClosestStore(latitude, longitude);
-        if (closestStore) {
-          setSelectedStore(closestStore);
-          toast.success(`Localização detectada: ${closestStore.name}`);
-        }
-      } else {
-        const closestStore = getClosestStore(latitude, longitude);
-        if (closestStore) {
-          const distanceText = formatDistance(closestStore.distance || 0);
-          toast.error(
-            <div className="flex flex-col gap-2">
-              <p>Você precisa estar em uma loja Elite Açaí para registrar compras.</p>
-              <p className="flex items-center gap-2 text-sm">
-                <MapPin className="w-4 h-4" />
-                Loja mais próxima: {closestStore.name} ({distanceText})
-              </p>
-            </div>
-          );
-        }
-      }
-    } catch (error: any) {
-      console.error('Error getting location:', error);
-      setLocationError(error.message);
-      toast.error(error.message);
-    }
-  };
 
   const calculateAvailableBalance = async () => {
     if (!customer?.id) return;
@@ -256,12 +187,6 @@ function ClientDashboard() {
         setCustomer(customerData);
         toast.success('Login realizado com sucesso!');
       } else {
-        // Validation for new registration
-        if (!whatsAppConsent) {
-          toast.error('É necessário aceitar o recebimento de comunicações via WhatsApp');
-          return;
-        }
-
         const { data: existingCustomer } = await supabase
           .from('customers')
           .select('id')
@@ -312,8 +237,7 @@ function ClientDashboard() {
             phone: cleanPhone,
             date_of_birth: dateOfBirth,
             password_hash: password,
-            balance: 0,
-            whatsapp_consent: whatsAppConsent
+            balance: 0
           })
           .select()
           .single();
@@ -329,31 +253,23 @@ function ClientDashboard() {
         toast.success('Cadastro realizado com sucesso!');
       }
 
-      if (!rememberMe) {
-        setEmail('');
-        setPhone('');
-        setName('');
-        setDateOfBirth('');
-        setPassword('');
-        setConfirmPassword('');
-        setWhatsAppConsent(false);
-      }
+      setEmail('');
+      setPhone('');
+      setName('');
+      setDateOfBirth('');
+      setPassword('');
+      setConfirmPassword('');
     } catch (error: any) {
       console.error('Error:', error);
-      toast.error(error.message || 'Erro ao processar solicitação', {
-        duration: 6000
-      });
+      toast.error(error.message || 'Erro ao processar solicitação');
     } finally {
       setLoading(false);
     }
   };
 
-  const handlePurchaseSubmit = async (e: React.FormEvent) => {
+  const addTransaction = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!customer) {
-      toast.error('Por favor, faça login primeiro');
-      return;
-    }
+    if (!customer) return;
 
     const amount = parseFloat(transactionAmount);
     if (isNaN(amount) || amount <= 0) {
@@ -362,44 +278,44 @@ function ClientDashboard() {
     }
 
     if (!selectedStore) {
-      toast.error('Por favor, selecione uma loja para registrar a compra');
+      toast.error('Por favor, selecione uma loja');
       return;
     }
 
-    setShowPurchaseConfirmation(true);
-  };
-
-  const confirmPurchase = async () => {
     if (isSubmitting) return;
 
     setIsSubmitting(true);
     setLoading(true);
-    setShowPurchaseConfirmation(false);
 
     try {
       const position = await getCurrentPosition();
       const { latitude, longitude } = position.coords;
 
-      if (!isWithinStoreRange(latitude, longitude)) {
-        const closestStore = getClosestStore(latitude, longitude);
-        if (closestStore) {
-          const distanceText = formatDistance(closestStore.distance || 0);
-          toast.error(
-            <div className="flex flex-col gap-2">
-              <p>Você precisa estar em uma loja Elite Açaí para registrar compras.</p>
-              <p className="flex items-center gap-2 text-sm">
-                <MapPin className="w-4 h-4" />
-                Loja mais próxima: {closestStore.name} ({distanceText})
-              </p>
-            </div>
-          );
-        } else {
-          toast.error('Você precisa estar em uma loja Elite Açaí para registrar compras.');
-        }
+      const selectedStoreData = STORE_LOCATIONS.find(store => store.id === selectedStore);
+      if (!selectedStoreData) {
+        throw new Error('Loja não encontrada');
+      }
+
+      const distance = calculateDistance(
+        latitude,
+        longitude,
+        selectedStoreData.latitude,
+        selectedStoreData.longitude
+      );
+
+      if (distance > selectedStoreData.radius) {
+        toast.error(
+          <div className="flex flex-col gap-2">
+            <p>Você precisa estar na loja selecionada para registrar compras.</p>
+            <p className="flex items-center gap-2 text-sm">
+              <MapPin className="w-4 h-4" />
+              {selectedStoreData.name} ({selectedStoreData.address})
+            </p>
+          </div>
+        );
         return;
       }
 
-      const amount = parseFloat(transactionAmount);
       const expirationDate = new Date();
       expirationDate.setMonth(expirationDate.getMonth() + 2, 0);
       expirationDate.setHours(23, 59, 59, 999);
@@ -414,78 +330,42 @@ function ClientDashboard() {
           cashback_amount: cashbackAmount,
           type: 'purchase',
           status: 'pending',
-          store_id: selectedStore.id,
+          store_id: selectedStore,
           location: {
             latitude,
             longitude
           },
-          expires_at: expirationDate.toISOString()
+          expires_at: expirationDate.toISOString(),
+          comment: comment.trim() || null
         });
 
       if (error) throw error;
 
       setTransactionAmount('');
+      setComment('');
+      setSelectedStore('');
       await Promise.all([
         loadTransactions(),
         calculateAvailableBalance()
       ]);
 
-      // Show success message and cashback animation with longer duration
-      toast.custom((t) => (
-        <div className={`${
-          t.visible ? 'animate-slide-up' : 'animate-fade-out'
-        } max-w-md w-full bg-white shadow-lg rounded-lg pointer-events-auto flex ring-1 ring-black ring-opacity-5`}>
-          <div className="flex-1 w-0 p-4">
-            <div className="flex items-start">
-              <div className="flex-shrink-0 pt-0.5">
-                <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center">
-                  <CheckCircle2 className="h-6 w-6 text-green-600" />
-                </div>
-              </div>
-              <div className="ml-3 flex-1">
-                <p className="text-sm font-medium text-gray-900">
-                  Compra registrada com sucesso!
-                </p>
-                <p className="mt-1 text-sm text-gray-500">
-                  Você ganhou R$ {cashbackAmount.toFixed(2)} em cashback
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      ), {
-        duration: 6000,
-        position: 'top-right',
-      });
-
-      // Show cashback animation
-      setLastCashbackAmount(cashbackAmount);
-      setShowCashbackAnimation(true);
-      setTimeout(() => setShowCashbackAnimation(false), 3000);
-
+      toast.success('Compra registrada com sucesso! Aguarde a aprovação.');
     } catch (error: any) {
       console.error('Error:', error);
-      toast.error(error.message || 'Erro ao registrar compra', {
-        duration: 6000
-      });
+      toast.error(error.message || 'Erro ao registrar compra');
     } finally {
       setLoading(false);
       setIsSubmitting(false);
     }
   };
 
-  const handleRedemptionSubmit = async (e: React.FormEvent) => {
+  const handleRedeemCashback = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!customer) return;
 
     const amount = parseFloat(redemptionAmount);
     if (isNaN(amount) || amount <= 0) {
       toast.error('Por favor, insira um valor válido para resgate');
-      return;
-    }
-
-    if (!selectedRedemptionStore) {
-      toast.error('Por favor, selecione uma loja para o resgate');
       return;
     }
 
@@ -507,15 +387,8 @@ function ClientDashboard() {
       return;
     }
 
-    setShowRedemptionConfirmation(true);
-  };
-
-  const confirmRedemption = async () => {
     setLoading(true);
-    setShowRedemptionConfirmation(false);
-
     try {
-      const amount = parseFloat(redemptionAmount);
       const currentBalance = await getAvailableBalance(customer.id);
       
       if (!currentBalance || amount > currentBalance) {
@@ -543,8 +416,7 @@ function ClientDashboard() {
           amount: amount,
           cashback_amount: -amount,
           type: 'redemption',
-          status: 'pending',
-          store_id: selectedRedemptionStore?.id
+          status: 'approved'
         });
 
       if (error) {
@@ -567,18 +439,14 @@ function ClientDashboard() {
 
       toast.success(
         <div className="flex flex-col gap-2">
-          <p>Resgate solicitado com sucesso!</p>
+          <p>Resgate realizado com sucesso!</p>
           <p className="text-sm text-green-600">
-            Valor: R$ {amount.toFixed(2)}
-          </p>
-          <p className="text-sm text-gray-600">
-            Aguardando aprovação do administrador.
+            Valor resgatado: R$ {amount.toFixed(2)}
           </p>
         </div>
       );
       setShowRedemptionForm(false);
       setRedemptionAmount('');
-      setSelectedRedemptionStore(null);
     } catch (error: any) {
       console.error('Error:', error);
       toast.error(error.message || 'Erro ao resgatar cashback');
@@ -764,61 +632,23 @@ function ClientDashboard() {
                 </div>
 
                 {!isLogin && (
-                  <>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Confirme sua senha
-                      </label>
-                      <div className="relative">
-                        <input
-                          type="password"
-                          value={confirmPassword}
-                          onChange={(e) => setConfirmPassword(e.target.value)}
-                          className="input-field text-lg pl-11"
-                          placeholder="••••••"
-                          required={!isLogin}
-                        />
-                        <Lock className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
-                      </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Confirme sua senha
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="password"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        className="input-field text-lg pl-11"
+                        placeholder="••••••"
+                        required={!isLogin}
+                      />
+                      <Lock className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
                     </div>
-
-                    <div className="space-y-4 rounded-lg border-2 border-purple-100 p-4">
-                      <div className="flex items-start gap-2">
-                        <input
-                          type="checkbox"
-                          id="whatsAppConsent"
-                          checked={whatsAppConsent}
-                          onChange={(e) => setWhatsAppConsent(e.target.checked)}
-                          className="mt-1 h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
-                          required
-                        />
-                        <label htmlFor="whatsAppConsent" className="text-sm text-gray-600">
-                          <span className="font-medium block mb-1">Consentimento para Recebimento de Comunicações por WhatsApp</span>
-                          <span className="block">
-                            Autorizo em especial que meu número de WhatsApp, seja utilizado pela Elite Açaí para o envio de mensagens promocionais, informativos e campanhas de marketing.
-                          </span>
-                          <span className="block mt-2 text-xs">
-                            Declaro estar ciente de que poderei revogar este consentimento a qualquer momento, mediante solicitação pelos canais oficiais da loja.
-                          </span>
-                        </label>
-                      </div>
-                    </div>
-                  </>
+                  </div>
                 )}
-
-                <div className="flex items-center">
-                  <input
-                    type="checkbox"
-                    id="rememberMe"
-                    checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                    className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
-                  />
-                  
-                  <label htmlFor="rememberMe" className="ml-2 block text-sm text-gray-700">
-                    Lembrar dados
-                  </label>
-                </div>
 
                 {isLogin && (
                   <div className="text-right">
@@ -857,7 +687,6 @@ function ClientDashboard() {
         </div>
       ) : (
         <>
-          <PromotionsAlert />
           <div className="glass-card p-8">
             <div className="flex items-center justify-between mb-6">
               <div>
@@ -886,6 +715,8 @@ function ClientDashboard() {
                 </button>
               </div>
             </div>
+
+            <ActivityStats />
 
             {isTopCustomer && (
               <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-6">
@@ -936,7 +767,26 @@ function ClientDashboard() {
             <div className="space-y-6">
               <div className="border-t border-b border-purple-100 -mx-8 px-8 py-6">
                 <h3 className="font-medium text-gray-900 mb-4">Registrar Nova Compra</h3>
-                <form onSubmit={handlePurchaseSubmit} className="space-y-4">
+                <form onSubmit={addTransaction} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Selecione a Loja
+                    </label>
+                    <select
+                      value={selectedStore}
+                      onChange={e => setSelectedStore(e.target.value)}
+                      className="input-field text-lg"
+                      required
+                    >
+                      <option value="">Selecione uma loja</option>
+                      {STORE_LOCATIONS.map(store => (
+                        <option key={store.id} value={store.id}>
+                          {store.name} - {store.address}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Valor da Compra
@@ -960,24 +810,14 @@ function ClientDashboard() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Selecione a Loja para Registrar
+                      Comentário ou Sugestão (opcional)
                     </label>
-                    <select
-                      value={selectedStore?.id || ''}
-                      onChange={(e) => {
-                        const store = ALL_STORE_LOCATIONS.find(s => s.id === e.target.value);
-                        setSelectedStore(store || null);
-                      }}
-                      className="input-field text-lg"
-                      required
-                    >
-                      <option value="">Selecione uma loja</option>
-                      {ALL_STORE_LOCATIONS.map(store => (
-                        <option key={store.id} value={store.id}>
-                          {store.name}
-                        </option>
-                      ))}
-                    </select>
+                    <textarea
+                      value={comment}
+                      onChange={e => setComment(e.target.value)}
+                      className="input-field text-base min-h-[100px]"
+                      placeholder="Deixe seu comentário ou sugestão aqui..."
+                    />
                   </div>
 
                   <button
@@ -993,13 +833,14 @@ function ClientDashboard() {
 
               {availableBalance > 0 && (
                 <div className="text-center">
+                
                   {showRedemptionForm ? (
                     <div className="glass-card p-6 bg-purple-50">
                       <h3 className="font-medium text-gray-900 mb-4 flex items-center justify-center gap-2">
                         <Gift className="w-5 h-5 text-purple-600" />
                         Resgatar Cashback
                       </h3>
-                      <form onSubmit={handleRedemptionSubmit} className="space-y-4">
+                      <form onSubmit={handleRedeemCashback} className="space-y-4">
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
                             Valor para Resgate
@@ -1019,29 +860,6 @@ function ClientDashboard() {
                             Saldo disponível: R$ {availableBalance.toFixed(2)}
                           </p>
                         </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Selecione a Loja para Resgate
-                          </label>
-                          <select
-                            value={selectedRedemptionStore?.id || ''}
-                            onChange={(e) => {
-                              const store = ALL_STORE_LOCATIONS.find(s => s.id === e.target.value);
-                              setSelectedRedemptionStore(store || null);
-                            }}
-                            className="input-field text-lg"
-                            required
-                          >
-                            <option value="">Selecione uma loja</option>
-                            {ALL_STORE_LOCATIONS.map(store => (
-                              <option key={store.id} value={store.id}>
-                                {store.name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-
                         <div className="flex gap-2">
                           <button
                             type="submit"
@@ -1056,7 +874,6 @@ function ClientDashboard() {
                             onClick={() => {
                               setShowRedemptionForm(false);
                               setRedemptionAmount('');
-                              setSelectedRedemptionStore(null);
                             }}
                             className="btn-secondary flex-1 text-lg"
                             disabled={loading}
@@ -1189,14 +1006,6 @@ function ClientDashboard() {
                               </span>
                             </div>
                           )}
-                          {transaction.store_id && (
-                            <div className="flex items-center justify-between text-sm">
-                              <span className="text-gray-600">Loja</span>
-                              <span className="text-gray-900">
-                                {ALL_STORE_LOCATIONS.find(s => s.id === transaction.store_id)?.name || 'Loja não encontrada'}
-                              </span>
-                            </div>
-                          )}
                         </div>
                       </div>
                     )}
@@ -1206,33 +1015,6 @@ function ClientDashboard() {
           </div>
         </>
       )}
-
-      {/* Cashback Animation */}
-      {showCashbackAnimation && (
-        <div className="fixed bottom-4 right-4 animate-slide-up">
-          <CashbackAnimation amount={lastCashbackAmount} />
-        </div>
-      )}
-
-      <ConfirmationModal
-        isOpen={showPurchaseConfirmation}
-        onClose={() => setShowPurchaseConfirmation(false)}
-        onConfirm={confirmPurchase}
-        title="Confirmar Compra"
-        message={`Deseja registrar uma compra no valor de R$ ${parseFloat(transactionAmount).toFixed(2)}?`}
-        confirmText="Registrar Compra"
-      />
-
-      <ConfirmationModal
-        isOpen={showRedemptionConfirmation}
-        onClose={() => setShowRedemptionConfirmation(false)}
-        onConfirm={confirmRedemption}
-        title="Confirmar Resgate"
-        message={`Deseja resgatar R$ ${parseFloat(redemptionAmount).toFixed(2)} em cashback na loja ${selectedRedemptionStore?.name}?`}
-        confirmText="Confirmar Resgate"
-      />
     </div>
   );
 }
-
-export default ClientDashboard;

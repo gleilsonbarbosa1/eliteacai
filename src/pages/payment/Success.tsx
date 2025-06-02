@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { CheckCircle2, ArrowLeft } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
+import { supabase, ensureValidSession } from '../../lib/supabase';
 import toast from 'react-hot-toast';
 
 export default function PaymentSuccess() {
@@ -19,7 +19,10 @@ export default function PaymentSuccess() {
 
     const checkPaymentStatus = async () => {
       try {
-        // Get current user
+        // First ensure we have a valid session
+        await ensureValidSession();
+
+        // Get current user after ensuring valid session
         const { data: { user }, error: userError } = await supabase.auth.getUser();
         if (userError || !user) {
           throw new Error('Erro ao identificar usuário');
