@@ -74,6 +74,13 @@ export interface StoreLocation {
   distance?: number;
 }
 
+export interface CustomerBalance {
+  customer_id: string;
+  available_balance: number;
+  expiring_amount: number | null;
+  expiration_date: string | null;
+}
+
 // Store locations for geofencing - Using actual store IDs from the database
 export const STORE_LOCATIONS: StoreLocation[] = [
   {
