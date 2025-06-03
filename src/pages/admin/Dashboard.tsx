@@ -7,7 +7,7 @@ import { generateCustomerReport } from '../../utils/reportGenerator';
 import * as XLSX from 'xlsx';
 
 export default function Dashboard() {
-  const [activeTab, setActiveTab] = useState('transactions');
+  const [activeTab, setActiveTab] = useState('purchases');
   const [dateRange, setDateRange] = useState('today');
   const [customStartDate, setCustomStartDate] = useState(new Date());
   const [customEndDate, setCustomEndDate] = useState(new Date());
