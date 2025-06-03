@@ -7,7 +7,6 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
       manifest: {
         name: 'Elite Açaí - Sistema de Cashback',
         short_name: 'Elite Açaí',
@@ -17,14 +16,14 @@ export default defineConfig({
         display: 'standalone',
         icons: [
           {
-            src: 'mask-icon.svg',
-            sizes: 'any',
+            src: '/mask-icon.svg',
+            sizes: '512x512',
             type: 'image/svg+xml',
             purpose: 'any'
           },
           {
-            src: 'mask-icon.svg',
-            sizes: 'any',
+            src: '/mask-icon.svg',
+            sizes: '512x512',
             type: 'image/svg+xml',
             purpose: 'maskable'
           }
@@ -32,12 +31,9 @@ export default defineConfig({
       }
     })
   ],
-  optimizeDeps: {
-    exclude: ['lucide-react'],
-    include: ['ws']
-  },
   build: {
     target: 'es2020',
+    sourcemap: true,
     rollupOptions: {
       output: {
         manualChunks: {

@@ -1,5 +1,5 @@
 import type { StoreLocation } from '../types';
-import { STORE_LOCATIONS } from '../constants';
+import { STORE_LOCATIONS, TEST_STORE } from '../types';
 
 export function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371e3; // Earth's radius in meters
@@ -18,7 +18,7 @@ export function calculateDistance(lat1: number, lon1: number, lat2: number, lon2
 
 export async function getCurrentPosition(): Promise<GeolocationPosition> {
   if (!navigator.geolocation) {
-    throw new Error('Geolocation is not supported by your browser');
+    throw new Error('Seu navegador não suporta geolocalização');
   }
 
   // First check if permissions are granted
@@ -37,15 +37,15 @@ export async function getCurrentPosition(): Promise<GeolocationPosition> {
       reject(new Error('Tempo esgotado ao tentar obter sua localização. Por favor, verifique se o GPS está ativado e tente novamente.'));
     }, 15000); // 15 second timeout
 
+    const options = {
+      enableHighAccuracy: true,
+      timeout: 15000,
+      maximumAge: 0
+    };
+
     navigator.geolocation.getCurrentPosition(
       (position) => {
         clearTimeout(timeoutId);
-        // Update test store location with current position
-        const testStore = STORE_LOCATIONS.find(store => store.id === 'store4');
-        if (testStore) {
-          testStore.latitude = position.coords.latitude;
-          testStore.longitude = position.coords.longitude;
-        }
         resolve(position);
       },
       (error) => {
@@ -64,17 +64,16 @@ export async function getCurrentPosition(): Promise<GeolocationPosition> {
             reject(new Error('Ocorreu um erro ao obter sua localização. Por favor, tente novamente.'));
         }
       },
-      {
-        enableHighAccuracy: true,
-        timeout: 15000,
-        maximumAge: 0
-      }
+      options
     );
   });
 }
 
 export function isWithinStoreRange(latitude: number, longitude: number): boolean {
-  return STORE_LOCATIONS.some(store => {
+  // Include TEST_STORE in location check for development
+  const allStores = [...STORE_LOCATIONS, TEST_STORE];
+  
+  return allStores.some(store => {
     const distance = calculateDistance(
       latitude,
       longitude,
@@ -89,7 +88,10 @@ export function getClosestStore(latitude: number, longitude: number): (StoreLoca
   let closestStore: (StoreLocation & { distance?: number }) | null = null;
   let minDistance = Infinity;
 
-  STORE_LOCATIONS.forEach(store => {
+  // Include TEST_STORE in closest store calculation for development
+  const allStores = [...STORE_LOCATIONS, TEST_STORE];
+
+  allStores.forEach(store => {
     const distance = calculateDistance(
       latitude,
       longitude,

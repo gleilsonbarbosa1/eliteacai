@@ -1,148 +1,256 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import type { Customer } from '../types';
-import { STORE_LOCATIONS } from '../constants';
+import type { Customer, Transaction } from '../types';
 
-const CUSTOMERS_PER_PAGE = 20;
+interface CustomerMetrics {
+  totalPurchases: number;
+  totalSpent: number;
+  averagePurchase: number;
+  lastPurchase: Date | null;
+  totalCashback: number;
+  redeemedCashback: number;
+  expiredCashback: number;
+}
 
-export const generateCustomerReport = async (customers: Customer[]) => {
+interface DateRange {
+  startDate: Date;
+  endDate: Date;
+}
+
+function filterTransactionsByDateRange(transactions: Transaction[] | undefined, dateRange: DateRange): Transaction[] {
+  if (!transactions) return [];
+  
+  return transactions.filter(t => {
+    const transactionDate = new Date(t.created_at);
+    return transactionDate >= dateRange.startDate && transactionDate <= dateRange.endDate;
+  });
+}
+
+function calculateCustomerMetrics(transactions: Transaction[]): CustomerMetrics {
+  const metrics: CustomerMetrics = {
+    totalPurchases: 0,
+    totalSpent: 0,
+    averagePurchase: 0,
+    lastPurchase: null,
+    totalCashback: 0,
+    redeemedCashback: 0,
+    expiredCashback: 0
+  };
+
+  transactions.forEach(t => {
+    if (t.type === 'purchase' && t.status === 'approved') {
+      metrics.totalPurchases++;
+      metrics.totalSpent += Number(t.amount);
+      metrics.totalCashback += Number(t.cashback_amount);
+
+      const purchaseDate = new Date(t.created_at);
+      if (!metrics.lastPurchase || purchaseDate > metrics.lastPurchase) {
+        metrics.lastPurchase = purchaseDate;
+      }
+
+      if (t.expires_at && new Date(t.expires_at) < new Date()) {
+        metrics.expiredCashback += Number(t.cashback_amount);
+      }
+    } else if (t.type === 'redemption' && t.status === 'approved') {
+      metrics.redeemedCashback += Number(t.amount);
+    }
+  });
+
+  metrics.averagePurchase = metrics.totalPurchases > 0 ? 
+    metrics.totalSpent / metrics.totalPurchases : 0;
+
+  return metrics;
+}
+
+function getStatusIndicator(daysSinceLastPurchase: number | null): string {
+  if (daysSinceLastPurchase === null) return '🔴';
+  if (daysSinceLastPurchase <= 3) return '🟢';
+  if (daysSinceLastPurchase <= 7) return '🟡';
+  return '🔴';
+}
+
+export const generateCustomerReport = async (
+  customers: Customer[], 
+  dateRange: DateRange,
+  section: 'profile' | 'lifecycle' | 'active' = 'profile'
+) => {
   // Create new PDF document
   const doc = new jsPDF();
+  const now = new Date();
 
-  // Add header with logo
-  doc.setFontSize(20);
-  doc.setTextColor(147, 51, 234); // Purple color
-  doc.text('Sistema de Cashback', 14, 20);
-  
-  // Add subtitle
-  doc.setFontSize(16);
-  doc.setTextColor(0);
-  doc.text('Relatório de Clientes', 14, 30);
+  // Format currency
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    }).format(value);
+  };
 
-  // Add date and time
-  doc.setFontSize(10);
-  doc.setTextColor(100);
-  doc.text(`Gerado em: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`, 14, 40);
-
-  // Calculate store totals
-  const storeTotals = new Map<string, number>();
-  STORE_LOCATIONS.forEach(store => storeTotals.set(store.id, 0));
-
-  customers.forEach(customer => {
-    customer.transactions?.forEach((t: any) => {
-      if (t.type === 'purchase' && t.status === 'approved' && t.store_id) {
-        const currentTotal = storeTotals.get(t.store_id) || 0;
-        storeTotals.set(t.store_id, currentTotal + t.cashback_amount);
-      }
+  // Format date
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
     });
-  });
+  };
 
-  // Add store statistics
-  doc.setFontSize(12);
-  doc.setTextColor(0);
-  let yPos = 50;
-
-  doc.text('Cashback por Loja:', 14, yPos);
-  yPos += 8;
-
-  STORE_LOCATIONS.forEach(store => {
-    const total = storeTotals.get(store.id) || 0;
-    doc.text(`${store.name}: R$ ${total.toFixed(2)}`, 14, yPos);
-    yPos += 6;
-  });
-
-  yPos += 8;
-
-  // Add summary statistics
-  const totalBalance = customers.reduce((sum, customer) => sum + customer.balance, 0);
-  doc.text(`Total de clientes: ${customers.length}`, 14, yPos);
-  yPos += 8;
-  doc.text(`Saldo total em cashback: R$ ${totalBalance.toFixed(2)}`, 14, yPos);
-  yPos += 8;
-
-  // Calculate average balance
-  const averageBalance = customers.length > 0 ? totalBalance / customers.length : 0;
-  doc.text(`Média de saldo por cliente: R$ ${averageBalance.toFixed(2)}`, 14, yPos);
-  yPos += 16;
-
-  // Prepare table data
-  const tableData = customers.map(customer => [
-    customer.name || 'Não informado',
-    customer.phone.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3'),
-    `R$ ${customer.balance.toFixed(2)}`,
-    new Date(customer.created_at).toLocaleDateString('pt-BR'),
-    customer.last_login 
-      ? new Date(customer.last_login).toLocaleDateString('pt-BR')
-      : 'Nunca'
-  ]);
-
-  // Calculate total pages needed
-  const totalPages = Math.ceil(tableData.length / CUSTOMERS_PER_PAGE);
-
-  // Add page number text to first page
-  doc.setFontSize(10);
-  doc.setTextColor(100);
-  doc.text(`Página 1 de ${totalPages}`, doc.internal.pageSize.getWidth() / 2, doc.internal.pageSize.getHeight() - 10, { align: 'center' });
-
-  // Add first table
-  addTableToPage(doc, tableData.slice(0, CUSTOMERS_PER_PAGE), yPos);
-
-  // Add remaining pages
-  for (let page = 1; page < totalPages; page++) {
-    doc.addPage();
+  // Helper function to add page header
+  const addPageHeader = (title: string) => {
+    doc.setFontSize(20);
+    doc.setTextColor(147, 51, 234); // Purple color
+    doc.text(title, 14, 20);
     
-    // Add page number
+    // Add date range and generation time
     doc.setFontSize(10);
     doc.setTextColor(100);
-    doc.text(
-      `Página ${page + 1} de ${totalPages}`,
-      doc.internal.pageSize.getWidth() / 2,
-      doc.internal.pageSize.getHeight() - 10,
-      { align: 'center' }
-    );
+    doc.text(`Período: ${formatDate(dateRange.startDate)} até ${formatDate(dateRange.endDate)}`, 14, 30);
+    doc.text(`Gerado em: ${formatDate(now)} às ${now.toLocaleTimeString('pt-BR')}`, 14, 35);
+  };
 
-    // Add table starting at y=20 for subsequent pages
-    const startIdx = page * CUSTOMERS_PER_PAGE;
-    const endIdx = startIdx + CUSTOMERS_PER_PAGE;
-    addTableToPage(doc, tableData.slice(startIdx, endIdx), 20);
+  switch (section) {
+    case 'profile':
+      addPageHeader('Perfil de Compra dos Clientes');
+      generateProfileReport(doc, customers, dateRange);
+      break;
+    case 'lifecycle':
+      addPageHeader('Ciclo de Vida dos Clientes');
+      generateLifecycleReport(doc, customers, dateRange);
+      break;
+    case 'active':
+      addPageHeader('Relatório de Clientes Ativos');
+      generateActiveReport(doc, customers, dateRange);
+      break;
+  }
+
+  // Add page numbers
+  const pageCount = doc.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(`Página ${i} de ${pageCount}`, doc.internal.pageSize.width - 30, doc.internal.pageSize.height - 10);
   }
 
   // Save the PDF
-  doc.save(`relatorio-clientes-${new Date().toISOString().split('T')[0]}.pdf`);
+  const filename = `relatorio-${section}-${dateRange.startDate.toISOString().split('T')[0]}_${dateRange.endDate.toISOString().split('T')[0]}.pdf`;
+  doc.save(filename);
 };
 
-const addTableToPage = (doc: jsPDF, data: string[][], startY: number) => {
+function generateProfileReport(doc: jsPDF, customers: Customer[], dateRange: DateRange) {
+  const purchaseProfileData = customers.map(customer => {
+    const filteredTransactions = filterTransactionsByDateRange(customer.transactions, dateRange);
+    const metrics = calculateCustomerMetrics(filteredTransactions);
+
+    return [
+      customer.name || customer.phone,
+      `R$ ${metrics.averagePurchase.toFixed(2)}`,
+      metrics.totalPurchases,
+      `R$ ${metrics.totalSpent.toFixed(2)}`,
+      `R$ ${metrics.totalCashback.toFixed(2)}`
+    ];
+  });
+
   autoTable(doc, {
-    head: [['Nome', 'Telefone', 'Saldo', 'Data de Cadastro', 'Último Acesso']],
-    body: data,
-    startY,
-    styles: {
-      fontSize: 10,
-      cellPadding: 5,
-    },
+    startY: 45,
+    head: [['Cliente', 'Ticket Médio', 'Total Compras', 'Total Gasto', 'Cashback']],
+    body: purchaseProfileData,
     headStyles: {
-      fillColor: [147, 51, 234], // Purple color
+      fillColor: [147, 51, 234],
       textColor: 255,
-      fontStyle: 'bold',
-    },
-    alternateRowStyles: {
-      fillColor: [250, 245, 255], // Light purple
-    },
-    columnStyles: {
-      0: { cellWidth: 50 }, // Nome
-      1: { cellWidth: 35 }, // Telefone
-      2: { cellWidth: 30 }, // Saldo
-      3: { cellWidth: 35 }, // Data de Cadastro
-      4: { cellWidth: 35 }, // Último Acesso
-    },
-    margin: { top: 20 },
-    didDrawPage: (data) => {
-      // Add header to each page
-      if (data.pageNumber > 1) {
-        doc.setFontSize(14);
-        doc.setTextColor(147, 51, 234);
-        doc.text('Sistema de Cashback - Relatório de Clientes', 14, 15);
-      }
+      fontStyle: 'bold'
     }
   });
-};
+}
+
+function generateLifecycleReport(doc: jsPDF, customers: Customer[], dateRange: DateRange) {
+  const lifecycleData = customers.map(customer => {
+    const filteredTransactions = filterTransactionsByDateRange(customer.transactions, dateRange);
+    const metrics = calculateCustomerMetrics(filteredTransactions);
+
+    const daysSinceLastPurchase = metrics.lastPurchase ? 
+      Math.floor((new Date().getTime() - metrics.lastPurchase.getTime()) / (1000 * 60 * 60 * 24)) : 
+      null;
+
+    return [
+      getStatusIndicator(daysSinceLastPurchase),
+      customer.name || 'Não informado',
+      metrics.lastPurchase ? metrics.lastPurchase.toLocaleDateString('pt-BR') : 'Nunca',
+      daysSinceLastPurchase !== null ? `${daysSinceLastPurchase} dias` : 'N/A',
+      metrics.totalPurchases,
+      `R$ ${metrics.redeemedCashback.toFixed(2)}`
+    ];
+  });
+
+  autoTable(doc, {
+    startY: 45,
+    head: [['Status', 'Cliente', 'Última Compra', 'Dias Inativo', 'Total Compras', 'Cashback Resgatado']],
+    body: lifecycleData,
+    headStyles: {
+      fillColor: [147, 51, 234],
+      textColor: 255,
+      fontStyle: 'bold'
+    }
+  });
+
+  // Add legend
+  const legendY = doc.autoTable.previous.finalY + 10;
+  doc.setFontSize(10);
+  doc.setTextColor(100);
+  doc.text('🟢 Verde: Última compra em até 3 dias', 14, legendY);
+  doc.text('🟡 Amarelo: Última compra entre 4 e 7 dias', 14, legendY + 5);
+  doc.text('🔴 Vermelho: Última compra há mais de 8 dias', 14, legendY + 10);
+}
+
+function generateActiveReport(doc: jsPDF, customers: Customer[], dateRange: DateRange) {
+  doc.setFontSize(12);
+  doc.setTextColor(100);
+  doc.text('Clientes que fizeram login, cadastraram compra ou usaram saldo recentemente.', 14, 45);
+
+  const activeCustomersData = customers
+    .map(customer => {
+      const filteredTransactions = filterTransactionsByDateRange(customer.transactions, dateRange);
+      const metrics = calculateCustomerMetrics(filteredTransactions);
+
+      const daysSinceLastPurchase = metrics.lastPurchase ? 
+        Math.floor((new Date().getTime() - metrics.lastPurchase.getTime()) / (1000 * 60 * 60 * 24)) : 
+        null;
+
+      return {
+        customer,
+        metrics,
+        daysSinceLastPurchase
+      };
+    })
+    .sort((a, b) => {
+      if (!a.metrics.lastPurchase) return 1;
+      if (!b.metrics.lastPurchase) return -1;
+      return b.metrics.lastPurchase.getTime() - a.metrics.lastPurchase.getTime();
+    })
+    .map(({ customer, metrics, daysSinceLastPurchase }) => [
+      getStatusIndicator(daysSinceLastPurchase),
+      customer.name || 'Não informado',
+      customer.phone.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3'),
+      daysSinceLastPurchase !== null ? `${daysSinceLastPurchase} dias` : 'N/A',
+      metrics.totalPurchases
+    ]);
+
+  autoTable(doc, {
+    startY: 55,
+    head: [['Status', 'Nome', 'WhatsApp', 'Dias Inativo', 'Total Compras']],
+    body: activeCustomersData,
+    headStyles: {
+      fillColor: [147, 51, 234],
+      textColor: 255,
+      fontStyle: 'bold'
+    }
+  });
+
+  // Add legend
+  const legendY = doc.autoTable.previous.finalY + 10;
+  doc.setFontSize(10);
+  doc.setTextColor(100);
+  doc.text('🟢 Verde: Última compra em até 3 dias', 14, legendY);
+  doc.text('🟡 Amarelo: Última compra entre 4 e 7 dias', 14, legendY + 5);
+  doc.text('🔴 Vermelho: Última compra há mais de 8 dias', 14, legendY + 10);
+}
