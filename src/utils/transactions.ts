@@ -33,15 +33,20 @@ export async function createTransaction(data: Partial<Transaction>) {
 
 export async function getAvailableBalance(customerId: string): Promise<number> {
   try {
+    // Get balance from view
     const { data: balance, error } = await supabase
       .from('customer_balances')
       .select('available_balance')
       .eq('customer_id', customerId)
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error('Error fetching balance:', error);
+      throw error;
+    }
 
-    return balance?.available_balance || 0;
+    // Return balance, ensuring it's never negative
+    return Math.max(balance?.available_balance || 0, 0);
   } catch (error) {
     console.error('Error getting available balance:', error);
     return 0;
@@ -50,17 +55,21 @@ export async function getAvailableBalance(customerId: string): Promise<number> {
 
 export async function getNextExpiringCashback(customerId: string): Promise<{ amount: number; date: Date } | null> {
   try {
+    // Get next expiring cashback from view
     const { data: balance, error } = await supabase
       .from('customer_balances')
       .select('expiring_amount, expiration_date')
       .eq('customer_id', customerId)
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error('Error fetching expiring cashback:', error);
+      throw error;
+    }
 
     if (balance?.expiring_amount && balance?.expiration_date) {
       return {
-        amount: balance.expiring_amount,
+        amount: Math.max(balance.expiring_amount, 0), // Ensure non-negative
         date: new Date(balance.expiration_date)
       };
     }
@@ -74,7 +83,7 @@ export async function getNextExpiringCashback(customerId: string): Promise<{ amo
 
 export async function redeemCashback(customerId: string, amount: number) {
   try {
-    // First check available balance
+    // Get current balance from view
     const { data: balance, error: balanceError } = await supabase
       .from('customer_balances')
       .select('available_balance')
@@ -83,7 +92,7 @@ export async function redeemCashback(customerId: string, amount: number) {
 
     if (balanceError) throw balanceError;
 
-    // Round values for comparison to avoid floating point precision issues
+    // Round values for comparison
     const roundedBalance = Math.round((balance?.available_balance || 0) * 100) / 100;
     const roundedAmount = Math.round(amount * 100) / 100;
 
