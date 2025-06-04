@@ -204,7 +204,7 @@ export default function Dashboard() {
     }
   };
 
-  const handleStatusChange = async (transactionId, newStatus) => {
+  const handleStatusChange = async (transaction, newStatus) => {
     try {
       const { error } = await supabase
         .from('transactions')
@@ -212,9 +212,21 @@ export default function Dashboard() {
           status: newStatus,
           attendant_name: adminEmail
         })
-        .eq('id', transactionId);
+        .eq('id', transaction.id);
 
-      if (error) throw error;
+      if (error) {
+        // Check specifically for insufficient balance error on redemption approval
+        if (error.message === 'Insufficient balance for redemption' && 
+            transaction.type === 'redemption' && 
+            newStatus === 'approved') {
+          toast.error('Não é possível aprovar o resgate: saldo insuficiente do cliente', {
+            duration: 5000
+          });
+        } else {
+          throw error;
+        }
+        return;
+      }
 
       toast.success('Status atualizado com sucesso!');
       loadTransactions();
@@ -672,6 +684,7 @@ export default function Dashboard() {
                       <th className="p-4 text-sm font-medium text-gray-500">Última Atividade</th>
                       <th className="p-4 text-sm font-medium text-gray-500">Total de Compras</th>
                       <th className="p-4 text-sm font-medium text-gray-500">Total Gasto</th>
+                    
                     </tr>
                   </thead>
                   <tbody>
@@ -898,14 +911,14 @@ export default function Dashboard() {
                             {transaction.status === 'pending' && (
                               <div className="flex gap-2">
                                 <button
-                                  onClick={() => handleStatusChange(transaction.id, 'approved')}
+                                  onClick={() => handleStatusChange(transaction, 'approved')}
                                   className="p-1.5 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg transition-colors"
                                   title="Aprovar"
                                 >
                                   <CheckCircle2 className="w-5 h-5" />
                                 </button>
                                 <button
-                                  onClick={() => handleStatusChange(transaction.id, 'rejected')}
+                                  onClick={() => handleStatusChange(transaction, 'rejected')}
                                   className="p-1.5 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
                                   title="Rejeitar"
                                 >
