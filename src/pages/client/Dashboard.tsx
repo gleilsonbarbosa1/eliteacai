@@ -17,9 +17,43 @@ import ConfirmationModal from '../../components/ConfirmationModal';
 const ALL_STORE_LOCATIONS = [...STORE_LOCATIONS, TEST_STORE];
 
 function PromoMessage() {
+  const today = new Date().getDay(); // 0 = Sunday, 1 = Monday, etc.
+  
+  const getPromoMessage = () => {
+    switch (today) {
+      case 1: // Monday
+        return {
+          product: 'copo de 300g',
+          price: '9,99'
+        };
+      case 2: // Tuesday
+        return {
+          product: 'copo de 500g',
+          price: '15,99'
+        };
+      case 3: // Wednesday
+        return {
+          product: 'copo de 400g',
+          price: '12,99'
+        };
+      case 4: // Thursday
+        return {
+          product: 'quilo',
+          price: '37,99'
+        };
+      default:
+        return {
+          product: 'copo de 300g',
+          price: '9,99'
+        };
+    }
+  };
+
+  const promo = getPromoMessage();
+
   return (
     <div className="bg-purple-50 text-purple-700 p-4 rounded-xl text-center font-medium mt-6 border border-purple-100">
-      💥 Aproveite! Hoje tem copo de 400g SEM PESO por <span className="font-bold">R$12,99</span>! Só na Elite Açaí!
+      💥 Aproveite! Hoje tem {promo.product} SEM PESO por <span className="font-bold">R${promo.price}</span>! Só na Elite Açaí!
     </div>
   );
 }
