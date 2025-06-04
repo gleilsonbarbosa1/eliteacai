@@ -24,7 +24,7 @@ SELECT
       0
     ),
     0
-  ) as saldo_disponivel,
+  ) as amount,
   (
     SELECT cashback_amount
     FROM transactions t
