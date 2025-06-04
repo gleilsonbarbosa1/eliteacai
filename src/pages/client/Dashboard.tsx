@@ -1,3 +1,4 @@
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { Phone, Wallet, History, ArrowRight, Sparkles, ShoppingBag, Receipt, ChevronDown, ChevronUp, User, Lock, LogOut, MapPin, Calendar, Mail, AlertCircle, LogIn, Tag, Trophy, CreditCard, Gift, CheckCircle2, Clock, XCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -12,18 +13,8 @@ import PromotionsAlert from '../../components/PromotionsAlert';
 import CashbackAnimation from '../../components/CashbackAnimation';
 import ConfirmationModal from '../../components/ConfirmationModal';
 
-const STORE_CASHBACK_RATE = 0.05; // 5% cashback for in-store purchases
-
 // Combine visible stores and test store for geolocation checks
 const ALL_STORE_LOCATIONS = [...STORE_LOCATIONS, TEST_STORE];
-
-function PromoBanner() {
-  return (
-    <div className="bg-gradient-to-r from-purple-600 to-purple-500 text-white py-3 px-4 text-center font-medium text-lg fixed top-0 left-0 right-0 z-50 shadow-lg">
-      🎉 Promoção do Dia: Copo de 400g sem peso por <span className="font-bold">R$12,99</span>! Só hoje na Elite Açaí! 🍧
-    </div>
-  );
-}
 
 function PromoMessage() {
   return (
@@ -420,7 +411,7 @@ function ClientDashboard() {
       expirationDate.setMonth(expirationDate.getMonth() + 2, 0);
       expirationDate.setHours(23, 59, 59, 999);
 
-      const cashbackAmount = Number((amount * STORE_CASHBACK_RATE).toFixed(2));
+      const cashbackAmount = Number((amount * 0.05).toFixed(2));
 
       const { error } = await supabase
         .from('transactions')
@@ -640,11 +631,10 @@ function ClientDashboard() {
   };
 
   return (
-    <>
+    <div className="max-w-lg mx-auto space-y-6">
       {!customer ? (
         <div className="min-h-[80vh] flex items-center justify-center p-4">
-          <PromoBanner />
-          <div className="max-w-md w-full mt-16">
+          <div className="max-w-md w-full">
             <div className="glass-card p-8">
               <div className="text-center mb-8">
                 <div className="w-20 h-20 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-6">
@@ -818,6 +808,7 @@ function ClientDashboard() {
                             Declaro estar ciente de que poderei revogar este consentimento a qualquer momento, mediante solicitação pelos canais oficiais da loja.
                           </span>
                         </label>
+                
                       </div>
                     </div>
                   </>
@@ -972,7 +963,7 @@ function ClientDashboard() {
                     {transactionAmount && parseFloat(transactionAmount) > 0 && (
                       <p className="mt-2 text-sm text-purple-600 font-medium flex items-center gap-1">
                         <ArrowRight className="w-4 h-4" />
-                        Você receberá R$ {(parseFloat(transactionAmount) * STORE_CASHBACK_RATE).toFixed(2)} em cashback
+                        Você receberá R$ {(parseFloat(transactionAmount) * 0.05).toFixed(2)} em cashback
                       </p>
                     )}
                   </div>
@@ -1250,7 +1241,7 @@ function ClientDashboard() {
         message={`Deseja resgatar R$ ${parseFloat(redemptionAmount).toFixed(2)} em cashback na loja ${selectedRedemptionStore?.name}?`}
         confirmText="Confirmar Resgate"
       />
-    </>
+    </div>
   );
 }
 
