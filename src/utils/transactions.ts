@@ -33,20 +33,19 @@ export async function createTransaction(data: Partial<Transaction>) {
 
 export async function getAvailableBalance(customerId: string): Promise<number> {
   try {
-    // Get balance from view
+    // Use RPC function to get calculated balance (always positive)
     const { data: balance, error } = await supabase
-      .from('customer_balances')
-      .select('available_balance')
-      .eq('customer_id', customerId)
-      .single();
+      .rpc('get_customer_available_balance', {
+        customer_uuid: customerId
+      });
 
     if (error) {
       console.error('Error fetching balance:', error);
       throw error;
     }
 
-    // Return balance, ensuring it's never negative
-    return Math.max(balance?.available_balance || 0, 0);
+    // Return balance (already guaranteed to be non-negative by function)
+    return balance || 0;
   } catch (error) {
     console.error('Error getting available balance:', error);
     return 0;
@@ -83,17 +82,16 @@ export async function getNextExpiringCashback(customerId: string): Promise<{ amo
 
 export async function redeemCashback(customerId: string, amount: number) {
   try {
-    // Get current balance from view
+    // Get current balance using RPC function
     const { data: balance, error: balanceError } = await supabase
-      .from('customer_balances')
-      .select('available_balance')
-      .eq('customer_id', customerId)
-      .single();
+      .rpc('get_customer_available_balance', {
+        customer_uuid: customerId
+      });
 
     if (balanceError) throw balanceError;
 
     // Round values for comparison
-    const roundedBalance = Math.round((balance?.available_balance || 0) * 100) / 100;
+    const roundedBalance = Math.round((balance || 0) * 100) / 100;
     const roundedAmount = Math.round(amount * 100) / 100;
 
     if (!roundedBalance || roundedBalance < roundedAmount) {
