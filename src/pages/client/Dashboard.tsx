@@ -67,14 +67,17 @@ function ClientDashboard() {
   });
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
-  const [loginIdentifier, setLoginIdentifier] = useState(''); // Can be phone or name
+  const [loginEmail, setLoginEmail] = useState(() => {
+    const savedData = localStorage.getItem('loginData');
+    return savedData ? JSON.parse(savedData).email : '';
+  });
   const [dateOfBirth, setDateOfBirth] = useState('');
   const [password, setPassword] = useState(() => {
     const savedData = localStorage.getItem('loginData');
     return savedData ? JSON.parse(savedData).password : '';
   });
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [isLogin, setIsLogin] = useState(false);
+  const [isLogin, setIsLogin] = useState(true);
   const [rememberMe, setRememberMe] = useState(() => {
     return localStorage.getItem('rememberMe') === 'true';
   });
@@ -206,38 +209,15 @@ function ClientDashboard() {
     setLoading(true);
 
     try {
-      // Try to find customer by phone or name
-      let customerData = null;
-      let customerError = null;
-
-      // First try by phone (if loginIdentifier looks like a phone number)
-      const phoneRegex = /^\d{10,11}$/;
-      if (phoneRegex.test(loginIdentifier.replace(/\D/g, ''))) {
-        const cleanPhone = loginIdentifier.replace(/\D/g, '');
-        const { data, error } = await supabase
-          .from('customers')
-          .select('*')
-          .eq('phone', cleanPhone)
-          .single();
-        
-        customerData = data;
-        customerError = error;
-      }
-
-      // If not found by phone, try by name
-      if (!customerData && loginIdentifier.trim()) {
-        const { data, error } = await supabase
-          .from('customers')
-          .select('*')
-          .ilike('name', `%${loginIdentifier.trim()}%`)
-          .single();
-        
-        customerData = data;
-        customerError = error;
-      }
+      // Find customer by email
+      const { data: customerData, error: customerError } = await supabase
+        .from('customers')
+        .select('*')
+        .eq('email', loginEmail)
+        .single();
 
       if (customerError || !customerData) {
-        toast.error('Nome ou telefone não encontrado');
+        toast.error('Email não encontrado');
         return;
       }
 
@@ -262,7 +242,7 @@ function ClientDashboard() {
       
       if (rememberMe) {
         localStorage.setItem('loginData', JSON.stringify({ 
-          loginIdentifier, 
+          email: loginEmail, 
           password 
         }));
         localStorage.setItem('rememberMe', 'true');
@@ -462,7 +442,7 @@ function ClientDashboard() {
 
   const handleLogout = () => {
     setCustomer(null);
-    setLoginIdentifier('');
+    setLoginEmail('');
     setPhone('');
     setPassword('');
     setName('');
@@ -604,21 +584,18 @@ function ClientDashboard() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                {isLogin ? 'Nome ou Telefone *' : 'Telefone *'}
+                {isLogin ? 'E-mail *' : 'Telefone *'}
               </label>
               {isLogin ? (
                 <>
                   <input
-                    type="text"
-                    value={loginIdentifier}
-                    onChange={(e) => setLoginIdentifier(e.target.value)}
+                    type="email"
+                    value={loginEmail}
+                    onChange={(e) => setLoginEmail(e.target.value)}
                     className="input-field"
-                    placeholder="João da Silva ou 11999999999"
+                    placeholder="seu@email.com"
                     required
                   />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Digite seu nome completo ou telefone (11 dígitos)
-                  </p>
                 </>
               ) : (
                 <>
@@ -640,7 +617,7 @@ function ClientDashboard() {
               <>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    E-mail
+                    E-mail *
                   </label>
                   <input
                     type="email"
@@ -648,6 +625,7 @@ function ClientDashboard() {
                     onChange={(e) => setEmail(e.target.value)}
                     className="input-field"
                     placeholder="seu@email.com"
+                    required
                   />
                 </div>
 
