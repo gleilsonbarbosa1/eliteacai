@@ -67,6 +67,7 @@ function ClientDashboard() {
   });
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [loginIdentifier, setLoginIdentifier] = useState(''); // Can be phone or name
   const [dateOfBirth, setDateOfBirth] = useState('');
   const [password, setPassword] = useState(() => {
     const savedData = localStorage.getItem('loginData');
@@ -205,20 +206,44 @@ function ClientDashboard() {
     setLoading(true);
 
     try {
-      const { data, error } = await supabase
-        .from('customers')
-        .select('*')
-        .eq('phone', phone)
-        .single();
+      // Try to find customer by phone or name
+      let customerData = null;
+      let customerError = null;
 
-      if (error || !data) {
-        toast.error('Telefone não encontrado');
+      // First try by phone (if loginIdentifier looks like a phone number)
+      const phoneRegex = /^\d{10,11}$/;
+      if (phoneRegex.test(loginIdentifier.replace(/\D/g, ''))) {
+        const cleanPhone = loginIdentifier.replace(/\D/g, '');
+        const { data, error } = await supabase
+          .from('customers')
+          .select('*')
+          .eq('phone', cleanPhone)
+          .single();
+        
+        customerData = data;
+        customerError = error;
+      }
+
+      // If not found by phone, try by name
+      if (!customerData && loginIdentifier.trim()) {
+        const { data, error } = await supabase
+          .from('customers')
+          .select('*')
+          .ilike('name', `%${loginIdentifier.trim()}%`)
+          .single();
+        
+        customerData = data;
+        customerError = error;
+      }
+
+      if (customerError || !customerData) {
+        toast.error('Nome ou telefone não encontrado');
         return;
       }
 
       // Verify password
       const { data: authData, error: authError } = await supabase.rpc('verify_customer_password', {
-        customer_phone: phone,
+        customer_phone: customerData.phone,
         password_input: password
       });
 
@@ -231,12 +256,15 @@ function ClientDashboard() {
       await supabase
         .from('customers')
         .update({ last_login: new Date().toISOString() })
-        .eq('id', data.id);
+        .eq('id', customerData.id);
 
-      setCustomer(data);
+      setCustomer(customerData);
       
       if (rememberMe) {
-        localStorage.setItem('loginData', JSON.stringify({ email, password }));
+        localStorage.setItem('loginData', JSON.stringify({ 
+          loginIdentifier, 
+          password 
+        }));
         localStorage.setItem('rememberMe', 'true');
       } else {
         localStorage.removeItem('loginData');
@@ -434,6 +462,7 @@ function ClientDashboard() {
 
   const handleLogout = () => {
     setCustomer(null);
+    setLoginIdentifier('');
     setPhone('');
     setPassword('');
     setName('');
@@ -575,18 +604,36 @@ function ClientDashboard() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Telefone *
+                {isLogin ? 'Nome ou Telefone *' : 'Telefone *'}
               </label>
-              <input
-                type="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
-                className="input-field"
-                placeholder="11999999999"
-                maxLength={11}
-                required
-              />
-              <p className="text-xs text-gray-500 mt-1">Digite apenas números (11 dígitos)</p>
+              {isLogin ? (
+                <>
+                  <input
+                    type="text"
+                    value={loginIdentifier}
+                    onChange={(e) => setLoginIdentifier(e.target.value)}
+                    className="input-field"
+                    placeholder="João da Silva ou 11999999999"
+                    required
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Digite seu nome completo ou telefone (11 dígitos)
+                  </p>
+                </>
+              ) : (
+                <>
+                  <input
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
+                    className="input-field"
+                    placeholder="11999999999"
+                    maxLength={11}
+                    required
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Digite apenas números (11 dígitos)</p>
+                </>
+              )}
             </div>
 
             {!isLogin && (
