@@ -35,8 +35,8 @@ export async function getAvailableBalance(customerId: string): Promise<number> {
   try {
     // Use RPC function to get calculated balance (always positive)
     const { data: balance, error } = await supabase
-      .rpc('get_customer_available_balance', {
-        customer_uuid: customerId
+      .rpc('get_available_balance', {
+        customer_id: customerId
       });
 
     if (error) {
@@ -84,8 +84,8 @@ export async function redeemCashback(customerId: string, amount: number) {
   try {
     // Get current balance using RPC function
     const { data: balance, error: balanceError } = await supabase
-      .rpc('get_customer_available_balance', {
-        customer_uuid: customerId
+      .rpc('get_available_balance', {
+        customer_id: customerId
       });
 
     if (balanceError) throw balanceError;
