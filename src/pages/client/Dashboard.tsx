@@ -223,8 +223,8 @@ function ClientDashboard() {
 
       // Verify password
       const { data: authData, error: authError } = await supabase.rpc('verify_customer_password', {
-        customer_phone: customerData.phone,
-        password_input: password
+        p_email: customerData.email,
+        p_password: password
       });
 
       if (authError || !authData) {
