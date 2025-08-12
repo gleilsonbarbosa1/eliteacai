@@ -45,7 +45,7 @@ function App() {
     <>
       <Toaster position="top-right" />
       <Routes>
-        <Route path="/" element={<Navigate to="/client\" replace />} />
+        <Route path="/" element={<Navigate to="/client" replace />} />
         
         {/* Client Routes */}
         <Route path="/client" element={<ClientLayout />}>
@@ -69,7 +69,7 @@ function App() {
         </Route>
 
         {/* Catch all route */}
-        <Route path="*" element={<Navigate to="/client\" replace />} />
+        <Route path="*" element={<Navigate to="/client" replace />} />
       </Routes>
     </>
   );
