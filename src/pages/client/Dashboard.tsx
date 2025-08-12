@@ -446,6 +446,16 @@ function ClientDashboard() {
 
       // Send WhatsApp notification if consent is given
       if (customer?.whatsapp_consent) {
+        try {
+          await sendWhatsAppNotification({
+            customerId: customer.id,
+            type: 'redemption',
+            amount
+          });
+        } catch (error) {
+          console.error('Error sending redemption notification:', error);
+        }
+      }
     } catch (error) {
       console.error('Redemption error:', error);
       toast.error('Erro ao processar resgate');
