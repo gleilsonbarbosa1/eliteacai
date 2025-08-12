@@ -549,6 +549,12 @@ function ClientDashboard() {
             </div>
             <h1 className="text-3xl font-bold text-gray-900 mb-2">Elite Açaí</h1>
             <p className="text-gray-600">Sistema de Cashback</p>
+            <div className="mt-4 p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-100">
+              <h2 className="text-lg font-bold text-purple-700 mb-1">Ganhe 5% de Cashback!</h2>
+              <p className="text-sm text-purple-600">
+                Compre hoje e ganhe 5% do valor de volta para suas próximas compras!
+              </p>
+            </div>
           </div>
 
           <div className="flex rounded-lg border border-purple-100 p-1 mb-6">
