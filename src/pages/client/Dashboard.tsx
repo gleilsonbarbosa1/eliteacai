@@ -375,6 +375,19 @@ function ClientDashboard() {
       // Send WhatsApp notification if consent is given
       if (customer?.whatsapp_consent) {
         try {
+          await sendWhatsAppNotification({
+            customerId: customer.id,
+            type: 'purchase',
+            data: {
+              amount,
+              cashback: cashbackAmount,
+              store: selectedStore.name
+            }
+          });
+        } catch (error) {
+          console.error('Error sending purchase notification:', error);
+        }
+      }
     } catch (error) {
       console.error('Purchase error:', error);
       toast.error('Erro ao registrar compra');
