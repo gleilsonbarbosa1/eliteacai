@@ -24,7 +24,8 @@ export async function sendWhatsAppNotification(notification: WhatsAppNotificatio
     );
 
     if (!response.ok) {
-      throw new Error('Failed to send notification');
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to send notification');
     }
 
     return await response.json();
