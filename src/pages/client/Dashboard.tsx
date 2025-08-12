@@ -425,7 +425,7 @@ function ClientDashboard() {
           amount,
           cashback_amount: 0,
           type: 'redemption',
-          status: 'approved',
+          status: 'pending',
           store_id: selectedRedemptionStore.id,
           location: userLocation ? {
             latitude: userLocation.coords.latitude,
@@ -442,23 +442,10 @@ function ClientDashboard() {
       await loadTransactions();
       await calculateAvailableBalance();
       
-      toast.success(`Resgate de R$ ${amount.toFixed(2)} realizado com sucesso!`);
+      toast.success(`Resgate de R$ ${amount.toFixed(2)} registrado! Aguarde a aprovação do atendente.`);
 
       // Send WhatsApp notification if consent is given
       if (customer?.whatsapp_consent) {
-        try {
-          await sendWhatsAppNotification({
-            customerId: customer.id,
-            type: 'redemption',
-            data: {
-              amount,
-              store: selectedRedemptionStore.name
-            }
-          });
-        } catch (error) {
-          console.error('Error sending redemption notification:', error);
-        }
-      }
     } catch (error) {
       console.error('Redemption error:', error);
       toast.error('Erro ao processar resgate');
