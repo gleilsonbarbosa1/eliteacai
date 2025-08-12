@@ -105,8 +105,8 @@ export const STORE_LOCATIONS: StoreLocation[] = [
 export const TEST_STORE: StoreLocation = {
   id: '550e8400-e29b-41d4-a716-446655440002', // Updated to match database ID
   name: 'Loja Teste',
-  latitude: -3.859704392616844,
-  longitude: -38.63435852000634,
+  latitude: -3.8597579151222665,
+  longitude: -38.63431560466295,
   radius: 300, // 300 meters radius
-  address: 'Endereço de Teste'
+  address: 'R. 8, 574, residencial 1, cagado'
 };
