@@ -36,7 +36,7 @@ export async function getAvailableBalance(customerId: string): Promise<number> {
     // Use RPC function to get calculated balance (always positive)
     const { data: balance, error } = await supabase
       .rpc('get_available_balance', {
-        customer_id: customerId
+        p_customer_id: customerId
       });
 
     if (error) {
