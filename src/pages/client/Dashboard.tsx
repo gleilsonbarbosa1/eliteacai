@@ -269,13 +269,89 @@ function ClientDashboard() {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (password !== confirmPassword) {
-      toast.error('As senhas não coincidem');
+    // Validar nome
+    if (!name || name.trim().length < 2) {
+      toast.error('O nome deve ter pelo menos 2 caracteres');
+      return;
+    }
+
+    if (!/^[a-zA-ZÀ-ÿ\s]+$/.test(name.trim())) {
+      toast.error('O nome deve conter apenas letras e espaços');
+      return;
+    }
+
+    // Validar telefone
+    if (!phone) {
+      toast.error('Por favor, insira seu telefone');
+      return;
+    }
+
+    if (phone.length !== 11) {
+      toast.error('O telefone deve ter exatamente 11 dígitos');
+      return;
+    }
+
+    if (!/^\d{11}$/.test(phone)) {
+      toast.error('O telefone deve conter apenas números');
+      return;
+    }
+
+    // Validar email
+    if (!email) {
+      toast.error('Por favor, insira seu email');
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      toast.error('Por favor, insira um email válido');
+      return;
+    }
+
+    // Validar data de nascimento
+    if (!dateOfBirth) {
+      toast.error('Por favor, insira sua data de nascimento');
+      return;
+    }
+
+    const birthDate = new Date(dateOfBirth);
+    const today = new Date();
+    const age = today.getFullYear() - birthDate.getFullYear();
+    
+    if (age < 13) {
+      toast.error('Você deve ter pelo menos 13 anos');
+      return;
+    }
+
+    if (birthDate > today) {
+      toast.error('A data de nascimento não pode ser no futuro');
+      return;
+    }
+
+    // Validar senha
+    if (!password) {
+      toast.error('Por favor, insira uma senha');
       return;
     }
 
     if (password.length < 6) {
       toast.error('A senha deve ter pelo menos 6 caracteres');
+      return;
+    }
+
+    if (!/^(?=.*[a-zA-Z])(?=.*\d)/.test(password)) {
+      toast.error('A senha deve conter pelo menos uma letra e um número');
+      return;
+    }
+
+    // Validar confirmação de senha
+    if (!confirmPassword) {
+      toast.error('Por favor, confirme sua senha');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      toast.error('As senhas não coincidem');
       return;
     }
 
@@ -648,13 +724,16 @@ function ClientDashboard() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Data de Nascimento
+                    Data de Nascimento *
                   </label>
                   <input
                     type="date"
                     value={dateOfBirth}
                     onChange={(e) => setDateOfBirth(e.target.value)}
                     className="input-field"
+                    min="1900-01-01"
+                    max={new Date().toISOString().split('T')[0]}
+                    required
                   />
                 </div>
               </>
@@ -692,9 +771,9 @@ function ClientDashboard() {
                   required
                   minLength={6}
                 />
-              </div>
-            )}
-
+                <p className="text-xs text-gray-500 mt-1">
+                  {!isLogin ? 'Mínimo 6 caracteres, deve conter pelo menos uma letra e um número' : 'Mínimo 6 caracteres'}
+                </p>
             {isLogin && (
               <div className="flex items-center">
                 <input
