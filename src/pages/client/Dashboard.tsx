@@ -405,8 +405,8 @@ function ClientDashboard() {
       return;
     }
 
-    if (amount < 5) {
-      toast.error('O valor mínimo para resgate é R$ 5,00');
+    if (amount < 1) {
+      toast.error('O valor mínimo para resgate é R$ 1,00');
       return;
     }
 
@@ -900,15 +900,15 @@ function ClientDashboard() {
                   
                   <button
                     onClick={() => setShowRedemptionForm(true)}
-                    disabled={availableBalance < 5 || !isWithinStore}
+                    disabled={availableBalance < 1 || !isWithinStore}
                     className="btn-secondary w-full disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {!isWithinStore ? 'Você precisa estar na loja' : 'Resgatar Agora'}
                   </button>
                   
-                  {availableBalance < 5 && (
+                  {availableBalance < 1 && (
                     <p className="text-xs text-gray-500 text-center">
-                      Valor mínimo: R$ 5,00
+                      Valor mínimo: R$ 1,00
                     </p>
                   )}
                 </div>
@@ -921,12 +921,12 @@ function ClientDashboard() {
                     <input
                       type="number"
                       step="0.01"
-                      min="5"
+                      min="1"
                       max={availableBalance}
                       value={redemptionAmount}
                       onChange={(e) => setRedemptionAmount(e.target.value)}
                       className="input-field"
-                      placeholder="5,00"
+                      placeholder="1,00"
                       required
                     />
                     <p className="text-xs text-gray-500 mt-1">
