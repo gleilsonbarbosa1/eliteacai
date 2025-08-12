@@ -111,6 +111,8 @@ export default function PasswordReset() {
                   value={dateOfBirth}
                   onChange={(e) => setDateOfBirth(e.target.value)}
                   className="input-field text-lg pl-11"
+                  min="1900-01-01"
+                  max={new Date().toISOString().split('T')[0]}
                   required
                 />
                 <Calendar className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
