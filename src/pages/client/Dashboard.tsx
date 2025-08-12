@@ -391,6 +391,12 @@ function ClientDashboard() {
     } finally {
       setIsSubmitting(false);
     }
+    } catch (error) {
+      console.error('Purchase error:', error);
+      toast.error('Erro ao registrar compra');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleRedemption = async (e: React.FormEvent) => {
