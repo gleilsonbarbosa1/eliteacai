@@ -774,6 +774,9 @@ function ClientDashboard() {
                 <p className="text-xs text-gray-500 mt-1">
                   {!isLogin ? 'Mínimo 6 caracteres, deve conter pelo menos uma letra e um número' : 'Mínimo 6 caracteres'}
                 </p>
+              </div>
+            )}
+
             {isLogin && (
               <div className="flex items-center">
                 <input
