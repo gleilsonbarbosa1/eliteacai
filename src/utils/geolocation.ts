@@ -1,5 +1,5 @@
 import type { StoreLocation } from '../types';
-import { STORE_LOCATIONS, TEST_STORE } from '../types';
+import { STORE_LOCATIONS } from '../types';
 
 export function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371e3; // Earth's radius in meters
@@ -70,10 +70,7 @@ export async function getCurrentPosition(): Promise<GeolocationPosition> {
 }
 
 export function isWithinStoreRange(latitude: number, longitude: number): boolean {
-  // Include TEST_STORE in location check for development
-  const allStores = [...STORE_LOCATIONS, TEST_STORE];
-  
-  return allStores.some(store => {
+  return STORE_LOCATIONS.some(store => {
     const distance = calculateDistance(
       latitude,
       longitude,
@@ -88,10 +85,7 @@ export function getClosestStore(latitude: number, longitude: number): (StoreLoca
   let closestStore: (StoreLocation & { distance?: number }) | null = null;
   let minDistance = Infinity;
 
-  // Include TEST_STORE in closest store calculation for development
-  const allStores = [...STORE_LOCATIONS, TEST_STORE];
-
-  allStores.forEach(store => {
+  STORE_LOCATIONS.forEach(store => {
     const distance = calculateDistance(
       latitude,
       longitude,
