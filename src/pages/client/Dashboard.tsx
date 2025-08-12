@@ -378,11 +378,8 @@ function ClientDashboard() {
           await sendWhatsAppNotification({
             customerId: customer.id,
             type: 'purchase',
-            data: {
-              amount,
-              cashback: cashbackAmount,
-              store: selectedStore.name
-            }
+            amount,
+            cashbackAmount
           });
         } catch (error) {
           console.error('Error sending purchase notification:', error);
