@@ -349,7 +349,7 @@ function ClientDashboard() {
           amount,
           cashback_amount: 0, // Will be calculated by trigger
           type: 'purchase',
-          status: 'approved',
+          status: 'pending',
           store_id: selectedStore.id,
           location: userLocation ? {
             latitude: userLocation.coords.latitude,
@@ -370,7 +370,7 @@ function ClientDashboard() {
       await loadTransactions();
       await calculateAvailableBalance();
       
-      toast.success(`Compra registrada! Você ganhou R$ ${cashbackAmount.toFixed(2)} de cashback!`);
+      toast.success('Compra registrada! Aguarde a aprovação do atendente para liberar o cashback.');
 
       // Send WhatsApp notification if consent is given
       if (customer?.whatsapp_consent) {
@@ -378,19 +378,16 @@ function ClientDashboard() {
           await sendWhatsAppNotification({
             customerId: customer.id,
             type: 'purchase',
-            amount,
-            cashbackAmount
+            data: {
+              amount,
+              cashback: cashbackAmount,
+              store: selectedStore.name
+            }
           });
         } catch (error) {
           console.error('Error sending purchase notification:', error);
         }
       }
-    } catch (error) {
-      console.error('Purchase error:', error);
-      toast.error('Erro ao registrar compra');
-    } finally {
-      setIsSubmitting(false);
-    }
     } catch (error) {
       console.error('Purchase error:', error);
       toast.error('Erro ao registrar compra');
