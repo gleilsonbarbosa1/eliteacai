@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Lock, ArrowLeft, Calendar } from 'lucide-react';
+import { Lock, ArrowLeft, Calendar, Phone } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
 
 export default function PasswordReset() {
+  const [phone, setPhone] = useState('');
   const [dateOfBirth, setDateOfBirth] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -16,6 +17,11 @@ export default function PasswordReset() {
     setLoading(true);
 
     try {
+      if (!phone) {
+        toast.error('Por favor, insira seu telefone');
+        return;
+      }
+
       if (!dateOfBirth) {
         toast.error('Por favor, insira sua data de nascimento');
         return;
@@ -34,6 +40,7 @@ export default function PasswordReset() {
       // Use RPC to reset password with proper hashing
       const { data: success, error: resetError } = await supabase
         .rpc('reset_customer_password_with_dob', {
+          p_phone: phone,
           p_date_of_birth: dateOfBirth,
           p_new_password: newPassword
         });
@@ -43,7 +50,7 @@ export default function PasswordReset() {
       }
 
       if (!success) {
-        toast.error('Data de nascimento incorreta');
+        toast.error('Telefone ou data de nascimento incorretos');
         return;
       }
 
@@ -74,6 +81,26 @@ export default function PasswordReset() {
           </div>
 
           <form onSubmit={handleResetPassword} className="space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Telefone Cadastrado
+              </label>
+              <div className="relative">
+                <input
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className="input-field text-lg pl-11"
+                  placeholder="85999999999"
+                  required
+                />
+                <Phone className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
+              </div>
+              <p className="mt-2 text-sm text-gray-500">
+                Digite seu telefone cadastrado (apenas números)
+              </p>
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Data de Nascimento Cadastrada
