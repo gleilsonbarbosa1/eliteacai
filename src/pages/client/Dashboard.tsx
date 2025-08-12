@@ -310,7 +310,11 @@ function ClientDashboard() {
       // Send welcome notification if WhatsApp consent is given
       if (whatsAppConsent) {
         try {
-          await sendWhatsAppNotification(phone, 'welcome', { name });
+          await sendWhatsAppNotification({
+            customerId: data.id,
+            type: 'welcome',
+            data: { name }
+          });
         } catch (error) {
           console.error('Error sending welcome notification:', error);
         }
@@ -371,10 +375,14 @@ function ClientDashboard() {
       // Send WhatsApp notification if consent is given
       if (customer?.whatsapp_consent) {
         try {
-          await sendWhatsAppNotification(customer.phone, 'purchase', {
-            amount: amount.toFixed(2),
-            cashback: cashbackAmount.toFixed(2),
-            store: selectedStore.name
+          await sendWhatsAppNotification({
+            customerId: customer.id,
+            type: 'purchase',
+            data: {
+              amount,
+              cashback: cashbackAmount,
+              store: selectedStore.name
+            }
           });
         } catch (error) {
           console.error('Error sending purchase notification:', error);
@@ -442,9 +450,13 @@ function ClientDashboard() {
       // Send WhatsApp notification if consent is given
       if (customer?.whatsapp_consent) {
         try {
-          await sendWhatsAppNotification(customer.phone, 'redemption', {
-            amount: amount.toFixed(2),
-            store: selectedRedemptionStore.name
+          await sendWhatsAppNotification({
+            customerId: customer.id,
+            type: 'redemption',
+            data: {
+              amount,
+              store: selectedRedemptionStore.name
+            }
           });
         } catch (error) {
           console.error('Error sending redemption notification:', error);
