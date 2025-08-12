@@ -107,6 +107,6 @@ export const TEST_STORE: StoreLocation = {
   name: 'Loja Teste',
   latitude: -3.859704392616844,
   longitude: -38.63435852000634,
-  radius: 1000, // 1km radius for testing
+  radius: 40, // 40 meters radius
   address: 'Endereço de Teste'
 };
