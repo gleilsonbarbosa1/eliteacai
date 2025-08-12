@@ -17,18 +17,61 @@ export default function PasswordReset() {
     setLoading(true);
 
     try {
+      // Validar telefone
       if (!phone) {
         toast.error('Por favor, insira seu telefone');
         return;
       }
 
+      if (phone.length !== 11) {
+        toast.error('O telefone deve ter exatamente 11 dígitos');
+        return;
+      }
+
+      if (!/^\d{11}$/.test(phone)) {
+        toast.error('O telefone deve conter apenas números');
+        return;
+      }
+
+      // Validar data de nascimento
       if (!dateOfBirth) {
         toast.error('Por favor, insira sua data de nascimento');
         return;
       }
 
+      const birthDate = new Date(dateOfBirth);
+      const today = new Date();
+      const age = today.getFullYear() - birthDate.getFullYear();
+      
+      if (age < 13) {
+        toast.error('Você deve ter pelo menos 13 anos');
+        return;
+      }
+
+      if (birthDate > today) {
+        toast.error('A data de nascimento não pode ser no futuro');
+        return;
+      }
+
+      // Validar nova senha
+      if (!newPassword) {
+        toast.error('Por favor, insira a nova senha');
+        return;
+      }
+
       if (newPassword.length < 6) {
         toast.error('A nova senha deve ter pelo menos 6 caracteres');
+        return;
+      }
+
+      if (!/^(?=.*[a-zA-Z])(?=.*\d)/.test(newPassword)) {
+        toast.error('A senha deve conter pelo menos uma letra e um número');
+        return;
+      }
+
+      // Validar confirmação de senha
+      if (!confirmPassword) {
+        toast.error('Por favor, confirme a nova senha');
         return;
       }
 
@@ -89,15 +132,16 @@ export default function PasswordReset() {
                 <input
                   type="tel"
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
+                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
                   className="input-field text-lg pl-11"
                   placeholder="85999999999"
+                  maxLength={11}
                   required
                 />
                 <Phone className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
               </div>
               <p className="mt-2 text-sm text-gray-500">
-                Digite seu telefone cadastrado (apenas números)
+                Digite seu telefone cadastrado (11 dígitos, apenas números)
               </p>
             </div>
 
@@ -138,7 +182,7 @@ export default function PasswordReset() {
                 <Lock className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
               </div>
               <p className="mt-2 text-sm text-gray-500">
-                Mínimo de 6 caracteres
+                Mínimo de 6 caracteres, deve conter pelo menos uma letra e um número
               </p>
             </div>
 
