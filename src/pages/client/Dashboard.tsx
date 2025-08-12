@@ -737,10 +737,10 @@ function ClientDashboard() {
           {isLogin && (
             <div className="mt-4 text-center">
               <Link 
-                to="/password-reset" 
+                to="/reset-password" 
                 className="text-sm text-purple-600 hover:text-purple-700"
               >
-                Esqueci minha senha
+                Trocar minha senha
               </Link>
             </div>
           )}
