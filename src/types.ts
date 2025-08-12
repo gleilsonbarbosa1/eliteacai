@@ -105,8 +105,8 @@ export const STORE_LOCATIONS: StoreLocation[] = [
 export const TEST_STORE: StoreLocation = {
   id: '550e8400-e29b-41d4-a716-446655440002', // Updated to match database ID
   name: 'Loja Teste',
-  latitude: -3.8597579151222665,
-  longitude: -38.63431560466295,
+  latitude: -3.859861,
+  longitude: -38.634325,
   radius: 300, // 300 meters radius
-  address: 'R. 7, 1580 - Cagado, Maracanaú - CE, 61912-160'
+  address: 'R. 8, 1580 - Residencial 1, Maracanaú - CE, 61913-080'
 };
