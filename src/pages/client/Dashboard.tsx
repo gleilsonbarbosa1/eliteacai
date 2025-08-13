@@ -220,7 +220,7 @@ function ClientDashboard() {
         .from('customers')
         .select('*')
         .eq('email', loginEmail)
-        .single();
+        .maybeSingle();
 
       if (customerError || !customerData) {
         toast.error('Email não encontrado');
