@@ -46,7 +46,7 @@ export default function AdminLogin() {
         .from('admins')
         .select('*')
         .eq('id', session.user.id)
-        .single();
+        .maybeSingle();
 
       if (adminError || !adminData) {
         await supabase.auth.signOut();

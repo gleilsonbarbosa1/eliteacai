@@ -51,7 +51,7 @@ export default function AdminLayout() {
         .from('admins')
         .select('*')
         .eq('id', session.user.id)
-        .single();
+        .maybeSingle();
 
       if (adminError) {
         console.error('Admin data fetch error:', adminError);
