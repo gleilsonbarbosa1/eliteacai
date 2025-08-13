@@ -48,9 +48,14 @@ export default function AdminLogin() {
         .eq('id', session.user.id)
         .maybeSingle();
 
-      if (adminError || !adminData) {
+      if (adminError) {
+        console.error('Error checking admin status:', adminError);
+        throw new Error('Erro ao verificar permissões de administrador');
+      }
+      
+      if (!adminData) {
         await supabase.auth.signOut();
-        throw new Error('Acesso não autorizado. Apenas administradores podem fazer login.');
+        throw new Error('Acesso não autorizado. Esta área é exclusiva para administradores. Use a área do cliente para fazer login.');
       }
 
       toast.success('Login realizado com sucesso!');
